@@ -1,6 +1,0 @@
-{
-  "summary": "Architectural implementation plan for enterprise-grade FastAPI, PostgreSQL, SQLAlchemy 2.0, Jinja2, HTMX, Tailwind CSS, and Alpine.js e-commerce application with transactional row locking, full-text search, CSV ingestion, Docker Compose orchestration, and comprehensive pytest suite.",
-  "updatedAt": "2026-10-20T00:52:12.024956368Z",
-  "requestFeedback": true,
-  "userFacing": true
-}
