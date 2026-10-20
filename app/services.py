@@ -78,8 +78,10 @@ class ProductService:
             clean_category = category.strip()
             validate_no_script_injection(clean_category, "category")
             validate_no_sql_injection(clean_category, "category")
-            statement = statement.where(Product.category == clean_category)
-            count_statement = count_statement.where(Product.category == clean_category)
+            statement = statement.where(func.lower(Product.category) == func.lower(clean_category))
+            count_statement = count_statement.where(
+                func.lower(Product.category) == func.lower(clean_category)
+            )
 
         if query and query.strip():
             clean_query = query.strip()

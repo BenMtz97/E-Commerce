@@ -53,7 +53,8 @@
              hx-get="/partials/products"
              hx-trigger="input changed delay:200ms, search"
              hx-target="#product-grid"
-             hx-include="[name='category']"
+             hx-swap="outerHTML"
+             hx-include="#active-category-input"
              class="block w-full pl-11 pr-11 py-3 text-sm text-white placeholder-slate-500 bg-slate-900/90 border border-slate-800 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner">
       <div class="htmx-indicator absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
         <svg class="animate-spin h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24">
@@ -68,13 +69,23 @@
         <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider shrink-0 pr-1">Category:</span>
         <input type="hidden" name="category" id="active-category-input" value="{{ active_category }}">
         <button type="button"
-                onclick="document.getElementById('active-category-input').value='all'; htmx.trigger(document.getElementById('main-search-input'), 'search'); document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white')); this.classList.add('bg-blue-600', 'text-white');"
+                hx-get="/partials/products"
+                hx-target="#product-grid"
+                hx-swap="outerHTML"
+                hx-include="#main-search-input"
+                hx-vals='{"category": "all"}'
+                onclick="document.getElementById('active-category-input').value='all'; document.querySelectorAll('.cat-btn').forEach(b => { b.classList.remove('bg-blue-600', 'text-white'); b.classList.add('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80'); }); this.classList.add('bg-blue-600', 'text-white'); this.classList.remove('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80');"
                 class="cat-btn px-3.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 {% if active_category == 'all' %}bg-blue-600 text-white{% else %}bg-slate-900 text-slate-300 hover:text-white border border-slate-800/80{% endif %}">
           All Items
         </button>
         {% for cat in categories %}
         <button type="button"
-                onclick="document.getElementById('active-category-input').value='{{ cat }}'; htmx.trigger(document.getElementById('main-search-input'), 'search'); document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white')); this.classList.add('bg-blue-600', 'text-white');"
+                hx-get="/partials/products"
+                hx-target="#product-grid"
+                hx-swap="outerHTML"
+                hx-include="#main-search-input"
+                hx-vals='{"category": "{{ cat }}"}'
+                onclick="document.getElementById('active-category-input').value='{{ cat }}'; document.querySelectorAll('.cat-btn').forEach(b => { b.classList.remove('bg-blue-600', 'text-white'); b.classList.add('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80'); }); this.classList.add('bg-blue-600', 'text-white'); this.classList.remove('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80');"
                 class="cat-btn px-3.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 {% if active_category == cat %}bg-blue-600 text-white{% else %}bg-slate-900 text-slate-300 hover:text-white border border-slate-800/80{% endif %}">
           {{ cat }}
         </button>
@@ -82,7 +93,11 @@
       </div>
 
       <button type="button"
-              onclick="document.getElementById('main-search-input').value=''; document.getElementById('active-category-input').value='all'; htmx.trigger(document.getElementById('main-search-input'), 'search'); document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white')); document.querySelector('.cat-btn').classList.add('bg-blue-600', 'text-white');"
+              hx-get="/partials/products"
+              hx-target="#product-grid"
+              hx-swap="outerHTML"
+              hx-vals='{"query": "", "category": "all"}'
+              onclick="document.getElementById('main-search-input').value=''; document.getElementById('active-category-input').value='all'; document.querySelectorAll('.cat-btn').forEach(b => { b.classList.remove('bg-blue-600', 'text-white'); b.classList.add('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80'); }); const first=document.querySelector('.cat-btn'); if(first) { first.classList.add('bg-blue-600', 'text-white'); first.classList.remove('bg-slate-900', 'text-slate-300', 'border', 'border-slate-800/80'); }"
               class="text-xs text-slate-400 hover:text-white shrink-0 px-2.5 py-1 rounded hover:bg-slate-900 transition-colors">
         Clear All
       </button>

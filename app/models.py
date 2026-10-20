@@ -5,7 +5,6 @@ from typing import Optional
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    Index,
     Integer,
     Numeric,
     String,
@@ -23,8 +22,6 @@ class Product(Base):
         CheckConstraint("price >= 0", name="check_product_price_non_negative"),
         CheckConstraint("stock >= 0", name="check_product_stock_non_negative"),
         CheckConstraint("weight_kg >= 0", name="check_product_weight_non_negative"),
-        Index("ix_products_sku_unique", "sku", unique=True),
-        Index("ix_products_category", "category"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

@@ -1040,7 +1040,9 @@ export default function App() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
+      const matchesCategory =
+        selectedCategory === 'All' ||
+        p.category.trim().toLowerCase() === selectedCategory.trim().toLowerCase();
       const q = searchQuery.trim().toLowerCase();
       const matchesQuery =
         !q ||

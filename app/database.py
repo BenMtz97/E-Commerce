@@ -45,7 +45,11 @@ async def init_db() -> None:
     from app.models import Product
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as exc:
+            if "already exists" not in str(exc).lower():
+                raise
 
     async with async_session_factory() as session:
         existing_result = await session.execute(select(Product).limit(1))

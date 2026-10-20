@@ -114,6 +114,8 @@ async def product_grid_partial(
             "current_page": safe_page,
             "total_pages": total_pages,
             "page_size": safe_limit,
+            "active_category": category or "all",
+            "active_query": query or "",
         },
     )
 
