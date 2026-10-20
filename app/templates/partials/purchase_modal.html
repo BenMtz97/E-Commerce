@@ -81,10 +81,6 @@
             <span>Unit Price</span>
             <span class="font-mono text-slate-300" x-text="selectedProduct ? '$' + Number(selectedProduct.price).toFixed(2) : '$0.00'"></span>
           </div>
-          <div class="flex justify-between text-xs text-slate-400">
-            <span>Concurrency Guard</span>
-            <span class="font-mono text-blue-400">SELECT FOR UPDATE</span>
-          </div>
           <div class="pt-2 border-t border-slate-800 flex justify-between text-sm font-semibold text-white">
             <span>Total Cost</span>
             <span class="font-mono text-emerald-400" x-text="selectedProduct ? '$' + (Number(selectedProduct.price) * purchaseQty).toFixed(2) : '$0.00'"></span>

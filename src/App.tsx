@@ -1126,7 +1126,7 @@ export default function App() {
       setPurchaseStatus({
         success: true,
         remaining: updatedStock,
-        message: `Transaction authorized via SELECT FOR UPDATE. Charged $${(purchaseModalProduct.price * purchaseQty).toFixed(2)} for ${purchaseQty} unit(s).`,
+        message: `Transaction authorized. Charged $${(purchaseModalProduct.price * purchaseQty).toFixed(2)} for ${purchaseQty} unit(s).`,
       });
       setIsPurchasing(false);
     }, 280);
