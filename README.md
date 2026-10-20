@@ -19,6 +19,9 @@ The application follows a clean separation of concerns:
   - `web.py`: Server-rendered Jinja2 views powering reactive HTMX swaps.
 
 ### B. Security & Injection Defense
+- **Formula & CSV Injection Prevention**:
+  - Rejects any cell starting with active spreadsheet formula triggers (`=`, `+`, `-`, `@`, `|`, `%`, `\t`, `\r`) or containing Dynamic Data Exchange (DDE) execution syntax (`cmd|`, `powershell|`, `calc|`, `notepad|`, `|' /C ...'!A0`, macro function invocations).
+  - Every individual cell across all columns in bulk CSV uploads is scanned and sanitized before database processing, eliminating CSV injection (CWE-1236) vulnerabilities.
 - **Script Injection (XSS) Prevention**:
   - All text inputs across SKU, model name, category, and description are scanned against disallowed HTML elements (`<script>`, `<iframe>`, `<object>`, `<embed>`, `<svg>`, `<applet>`), `javascript:` URI schemes, and inline event triggers (`onerror=`, `onload=`, `onclick=`).
   - Attempts are rejected at the Pydantic schema validation boundary and within the CSV bulk import processor.
@@ -108,7 +111,7 @@ To run individual test modules with detailed verbosity:
 # Test Product CRUD operations, input constraints, and injection rejections
 pytest tests/test_crud.py -v
 
-# Test CSV batch parsing, malformed rows, and XSS/SQL injection defenses
+# Test CSV batch parsing, malformed rows, and formula/XSS/SQL injection defenses
 pytest tests/test_csv_import.py -v
 
 # Test concurrent checkout race-condition prevention with asyncio.gather()

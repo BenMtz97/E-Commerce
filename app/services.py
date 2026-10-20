@@ -17,6 +17,7 @@ from app.schemas import (
     ProductCreate,
     ProductPurchaseResponse,
     ProductUpdate,
+    validate_no_formula_injection,
     validate_no_script_injection,
     validate_no_sql_injection,
 )
@@ -76,6 +77,7 @@ class ProductService:
 
         if category and category.strip().lower() != "all":
             clean_category = category.strip()
+            validate_no_formula_injection(clean_category, "category")
             validate_no_script_injection(clean_category, "category")
             validate_no_sql_injection(clean_category, "category")
             statement = statement.where(func.lower(Product.category) == func.lower(clean_category))
@@ -85,6 +87,7 @@ class ProductService:
 
         if query and query.strip():
             clean_query = query.strip()
+            validate_no_formula_injection(clean_query, "query")
             validate_no_script_injection(clean_query, "query")
             validate_no_sql_injection(clean_query, "query")
             search_pattern = f"%{clean_query}%"
@@ -291,11 +294,35 @@ class CsvImportService:
             raw_stock = row.get("stock", "")
             raw_weight = row.get("weight_kg", "")
 
+            cell_security_error: Optional[str] = None
+            for raw_col, raw_cell_val in raw_row.items():
+                if not raw_cell_val:
+                    continue
+                col_name = raw_col.strip() if raw_col else "cell"
+                try:
+                    validate_no_formula_injection(raw_cell_val, col_name)
+                    validate_no_script_injection(raw_cell_val, col_name)
+                    validate_no_sql_injection(raw_cell_val, col_name)
+                except ValueError as security_err:
+                    cell_security_error = str(security_err)
+                    break
+
+            if cell_security_error:
+                errors.append(
+                    CsvRowError(
+                        row_number=row_index,
+                        sku=sku if sku else None,
+                        error=cell_security_error,
+                    )
+                )
+                continue
+
             if not sku:
                 errors.append(CsvRowError(row_number=row_index, error="SKU is required."))
                 continue
 
             try:
+                validate_no_formula_injection(sku, "sku")
                 validate_no_script_injection(sku, "sku")
                 validate_no_sql_injection(sku, "sku")
             except ValueError as val_err:
@@ -339,6 +366,7 @@ class CsvImportService:
                 continue
 
             try:
+                validate_no_formula_injection(name, "name")
                 validate_no_script_injection(name, "name")
                 validate_no_sql_injection(name, "name")
             except ValueError as val_err:
@@ -352,6 +380,7 @@ class CsvImportService:
                 continue
 
             try:
+                validate_no_formula_injection(category, "category")
                 validate_no_script_injection(category, "category")
                 validate_no_sql_injection(category, "category")
             except ValueError as val_err:
@@ -360,6 +389,7 @@ class CsvImportService:
 
             if description:
                 try:
+                    validate_no_formula_injection(description, "description")
                     validate_no_script_injection(description, "description")
                     validate_no_sql_injection(description, "description")
                 except ValueError as val_err:

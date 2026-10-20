@@ -60,6 +60,11 @@ const SCRIPT_INJECTION_REGEX =
 const SQL_INJECTION_REGEX =
   /(--|\/\*|\*\/|;\s*(?:drop|delete|update|insert|alter|truncate|create|select)\b|\bunion\s+(?:all\s+)?select\b|(?:'|")\s*(?:or|and)\s+(?:'|")?\w+(?:'|")?\s*=\s*(?:'|")?\w+|\bbenchmark\s*\(|\bpg_sleep\s*\()/i;
 
+const FORMULA_INJECTION_START_REGEX = /^[\s'"\`]*[=+\-@\t\r%|]/i;
+
+const FORMULA_INJECTION_CONTENT_REGEX =
+  /(\b(?:cmd|powershell|cscript|wscript|calc|notepad|mshta|rundll32|regsvr32)\s*\||\|\s*['"\`]?\s*(?:\/[CcKk]|\-[CcKk]|\-enc|\-command)\b|\|\s*['"\`][^\n'"\`]+['"\`]!|(?:\b|[\s'"\`=+\-@])(?:SUM|AVERAGE|COUNT|MIN|MAX|HYPERLINK|IMPORTXML|WEBSERVICE|DDE|DDEAUTO|EXEC)\s*\(|\b(?:cmd|powershell|calc|notepad|mshta|cscript|wscript)\.exe\b)/i;
+
 const SKU_ALLOWED_REGEX = /^[A-Za-z0-9_.\-]+$/;
 
 const INITIAL_PRODUCTS: ProductItem[] = [
@@ -1389,6 +1394,13 @@ export default function App() {
 
   const validateTextSecurity = (text: string, fieldName: string): string | null => {
     if (!text) return null;
+    const trimmed = text.trim();
+    if (FORMULA_INJECTION_START_REGEX.test(trimmed)) {
+      return `Formula injection detected in ${fieldName}: cell value starts with a disallowed formula character (=, +, -, @, |, %, tab, newline).`;
+    }
+    if (FORMULA_INJECTION_CONTENT_REGEX.test(trimmed)) {
+      return `Formula injection detected in ${fieldName}: cell value contains executable formula or command injection syntax.`;
+    }
     if (SCRIPT_INJECTION_REGEX.test(text)) {
       return `Script injection detected in ${fieldName}: input contains disallowed HTML or script tags.`;
     }
@@ -1450,6 +1462,25 @@ export default function App() {
       const price = parseFloat(rowMap['price']);
       const stock = parseInt(rowMap['stock'], 10);
       const weight_kg = parseFloat(rowMap['weight_kg']);
+
+      let cellSecurityError: string | null = null;
+      for (const [colName, rawCellVal] of Object.entries(rowMap)) {
+        if (!rawCellVal) continue;
+        const securityErr = validateTextSecurity(rawCellVal, colName);
+        if (securityErr) {
+          cellSecurityError = securityErr;
+          break;
+        }
+      }
+
+      if (cellSecurityError) {
+        errors.push({
+          row_number: i + 1,
+          sku: sku || undefined,
+          error: cellSecurityError,
+        });
+        continue;
+      }
 
       if (!sku) {
         errors.push({ row_number: i + 1, error: 'SKU is required.' });
@@ -2319,7 +2350,7 @@ export default function App() {
                   <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
                     <p className="font-mono font-semibold text-emerald-400">tests/test_csv_import.py</p>
                     <p className="text-slate-400 mt-0.5">
-                      Tests batch CSV file upload, detects malformed rows, handles internal duplicate SKUs, and explicitly rejects script and SQL injection attempts.
+                      Tests batch CSV file upload, detects malformed rows, handles internal duplicate SKUs, and explicitly rejects formula, script, and SQL injection attempts.
                     </p>
                   </div>
                   <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80">

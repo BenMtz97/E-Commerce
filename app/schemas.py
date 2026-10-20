@@ -15,7 +15,35 @@ SQL_INJECTION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+FORMULA_INJECTION_START_PATTERN = re.compile(
+    r"^[\s\'\"`]*[=\+\-@\t\r%|]",
+    re.IGNORECASE,
+)
+
+FORMULA_INJECTION_CONTENT_PATTERN = re.compile(
+    r"(\b(?:cmd|powershell|cscript|wscript|calc|notepad|mshta|rundll32|regsvr32)\s*\|"
+    r"|\|\s*[\'\"`]?\s*(?:/[CcKk]|\-[CcKk]|\-enc|\-command)\b"
+    r"|\|\s*[\'\"`][^\n\'\"`]+[\'\"`]!"
+    r"|(?:\b|[\s\'\"`=+\-@])(?:SUM|AVERAGE|COUNT|MIN|MAX|HYPERLINK|IMPORTXML|WEBSERVICE|DDE|DDEAUTO|EXEC)\s*\("
+    r"|\b(?:cmd|powershell|calc|notepad|mshta|cscript|wscript)\.exe\b)",
+    re.IGNORECASE,
+)
+
 SKU_ALLOWED_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+
+def validate_no_formula_injection(value: Optional[str], field_name: str) -> None:
+    if not value:
+        return
+    trimmed = value.strip()
+    if FORMULA_INJECTION_START_PATTERN.search(trimmed):
+        raise ValueError(
+            f"Formula injection detected in {field_name}: cell value starts with a disallowed formula character (=, +, -, @, |, %, tab, newline)."
+        )
+    if FORMULA_INJECTION_CONTENT_PATTERN.search(trimmed):
+        raise ValueError(
+            f"Formula injection detected in {field_name}: cell value contains executable formula or command injection syntax."
+        )
 
 
 def validate_no_script_injection(value: Optional[str], field_name: str) -> None:
@@ -47,6 +75,7 @@ class ProductBase(BaseModel):
         trimmed = value.strip().upper()
         if not trimmed:
             raise ValueError("SKU cannot be empty")
+        validate_no_formula_injection(trimmed, "sku")
         validate_no_script_injection(trimmed, "sku")
         validate_no_sql_injection(trimmed, "sku")
         if not SKU_ALLOWED_PATTERN.match(trimmed):
@@ -61,6 +90,7 @@ class ProductBase(BaseModel):
         trimmed = value.strip()
         if not trimmed:
             raise ValueError("Name cannot be empty")
+        validate_no_formula_injection(trimmed, "name")
         validate_no_script_injection(trimmed, "name")
         validate_no_sql_injection(trimmed, "name")
         return trimmed
@@ -71,6 +101,7 @@ class ProductBase(BaseModel):
         trimmed = value.strip()
         if not trimmed:
             raise ValueError("Category cannot be empty")
+        validate_no_formula_injection(trimmed, "category")
         validate_no_script_injection(trimmed, "category")
         validate_no_sql_injection(trimmed, "category")
         return trimmed
@@ -81,6 +112,7 @@ class ProductBase(BaseModel):
         if value is None:
             return None
         trimmed = value.strip()
+        validate_no_formula_injection(trimmed, "description")
         validate_no_script_injection(trimmed, "description")
         validate_no_sql_injection(trimmed, "description")
         return trimmed
@@ -103,6 +135,7 @@ class ProductUpdate(BaseModel):
     def validate_update_name(cls, value: Optional[str]) -> Optional[str]:
         if value is not None:
             trimmed = value.strip()
+            validate_no_formula_injection(trimmed, "name")
             validate_no_script_injection(trimmed, "name")
             validate_no_sql_injection(trimmed, "name")
             return trimmed
@@ -113,6 +146,7 @@ class ProductUpdate(BaseModel):
     def validate_update_category(cls, value: Optional[str]) -> Optional[str]:
         if value is not None:
             trimmed = value.strip()
+            validate_no_formula_injection(trimmed, "category")
             validate_no_script_injection(trimmed, "category")
             validate_no_sql_injection(trimmed, "category")
             return trimmed
@@ -123,6 +157,7 @@ class ProductUpdate(BaseModel):
     def validate_update_description(cls, value: Optional[str]) -> Optional[str]:
         if value is not None:
             trimmed = value.strip()
+            validate_no_formula_injection(trimmed, "description")
             validate_no_script_injection(trimmed, "description")
             validate_no_sql_injection(trimmed, "description")
             return trimmed

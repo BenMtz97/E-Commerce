@@ -101,3 +101,51 @@ async def test_csv_import_missing_required_headers(client: AsyncClient) -> None:
     assert summary["successful_imports"] == 0
     assert summary["failed_imports"] == 1
     assert "Missing required columns" in summary["errors"][0]["error"]
+
+
+@pytest.mark.asyncio
+async def test_csv_import_rejects_formula_injection(client: AsyncClient) -> None:
+    formula_injection_csv = (
+        "name,sku,description,category,price,stock,weight_kg,is_active\n"
+        "=cmd|' /C calc'!A0,FRM-CALC-01,Inyeccion ejecucion comando calc,Auditoría,50.00,10,0.500,true\n"
+        "@SUM(1+9)*cmd|' /C notepad'!A0,FRM-NOTE-02,Inyeccion notepad con arroba,Auditoría,75.00,12,0.400,true\n"
+        "+10+20+cmd|' /C calc'!A0,FRM-PLUS-03,Inyeccion operacion aritmetica mas,Auditoría,20.00,15,0.200,true\n"
+        "-2+3+cmd|' /C calc'!A0,FRM-MINUS-04,Inyeccion operacion aritmetica menos,Auditoría,10.00,8,0.150,true\n"
+    )
+    files = {
+        "file": (
+            "test_formula_injection.csv",
+            io.BytesIO(formula_injection_csv.encode("utf-8")),
+            "text/csv",
+        )
+    }
+    response = await client.post("/api/products/import-csv", files=files)
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["total_rows"] == 4
+    assert summary["successful_imports"] == 0
+    assert summary["failed_imports"] == 4
+    assert len(summary["errors"]) == 4
+    for error_item in summary["errors"]:
+        assert "Formula injection detected" in error_item["error"]
+
+
+@pytest.mark.asyncio
+async def test_csv_import_rejects_formula_injection_in_any_cell(client: AsyncClient) -> None:
+    csv_data = (
+        "sku,name,description,category,price,stock,weight_kg\n"
+        "KNT-FORM-01,Valid Product Name,=HYPERLINK('http://malicious.com'),Computing,99.99,10,0.5\n"
+        "KNT-FORM-02,Clean Keyboard,Safe description,@SUM(1+2),129.00,5,0.8\n"
+        "KNT-CLEAN-03,Safe Mouse,High precision wireless mouse,Peripherals,49.99,25,0.1\n"
+    )
+    files = {
+        "file": ("columns_test.csv", io.BytesIO(csv_data.encode("utf-8")), "text/csv")
+    }
+    response = await client.post("/api/products/import-csv", files=files)
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["total_rows"] == 3
+    assert summary["successful_imports"] == 1
+    assert summary["failed_imports"] == 2
+    assert any("Formula injection detected" in err["error"] for err in summary["errors"])
+
