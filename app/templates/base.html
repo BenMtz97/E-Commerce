@@ -40,13 +40,20 @@
         editProduct: null,
         deleteProduct: null,
         purchaseQty: 1,
+        purchaseConfirmed: false,
         openPurchaseModal(product) {
           this.selectedProduct = product;
           this.purchaseQty = 1;
+          this.purchaseConfirmed = false;
+          const fb = document.getElementById('purchase-feedback-container');
+          if (fb) fb.innerHTML = '';
           this.purchaseModalOpen = true;
         },
         closePurchaseModal() {
           this.purchaseModalOpen = false;
+          this.purchaseConfirmed = false;
+          const fb = document.getElementById('purchase-feedback-container');
+          if (fb) fb.innerHTML = '';
         },
         openEditModal(product) {
           this.editProduct = { ...product };

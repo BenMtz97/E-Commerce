@@ -143,6 +143,7 @@ async def purchase_partial(
                 "product": product,
                 "message": f"Successfully purchased {quantity} unit(s) of {product.name}.",
             },
+            headers={"HX-Trigger": "transactionConfirmed"},
         )
     except InsufficientStockException as exception:
         product = await ProductService.get_by_id(db, product_id)
