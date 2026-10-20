@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}E-Commerce App &middot; Admin Management Portal{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          Admin Control Center
+        </span>
+        <span class="text-xs text-slate-400">Authenticated as <strong class="text-white">{{ current_user.email }}</strong></span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-white">Product Inventory Management</h1>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3">
+      <button @click="openCreateModal()"
+              type="button"
+              class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>Create Product</span>
+      </button>
+
+      <button @click="openCsvModal()"
+              type="button"
+              class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-200 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg transition-colors">
+        <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        <span>Upload CSV</span>
+      </button>
+
+      <button @click="adminModalOpen = true"
+              type="button"
+              class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-purple-200 bg-purple-950/40 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-colors">
+        <svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+        </svg>
+        <span>Create Admin User</span>
+      </button>
+
+      <a href="/"
+         class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors">
+        <span>Storefront View &rarr;</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <span class="text-xs text-slate-400 block mb-1">Catalog Items</span>
+      <span class="text-2xl font-bold font-mono text-white">{{ total_count }}</span>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <span class="text-xs text-slate-400 block mb-1">System Role</span>
+      <span class="text-2xl font-bold font-mono text-purple-400">Administrator</span>
+    </div>
+    <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <span class="text-xs text-slate-400 block mb-1">Active Admin Accounts</span>
+      <span class="text-2xl font-bold font-mono text-emerald-400">{{ admins|length }}</span>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden shadow-xl">
+    <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="text-sm font-semibold text-white">
+        Product Inventory List <span class="text-xs text-slate-400 font-normal">({{ products|length }} items shown)</span>
+      </div>
+      <a href="/sample-csv" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+        Download Sample CSV template
+      </a>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
+            <th class="py-3 px-4">SKU</th>
+            <th class="py-3 px-4">Product Name</th>
+            <th class="py-3 px-4">Category</th>
+            <th class="py-3 px-4 text-right">Price</th>
+            <th class="py-3 px-4 text-center">Stock</th>
+            <th class="py-3 px-4 text-right">Weight</th>
+            <th class="py-3 px-4 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-800/60 text-slate-200">
+          {% for product in products %}
+          <tr id="admin-row-{{ product.id }}" class="hover:bg-slate-900/70 transition-colors">
+            <td class="py-3 px-4 font-mono font-medium text-blue-400 whitespace-nowrap">{{ product.sku }}</td>
+            <td class="py-3 px-4">
+              <div class="font-medium text-white">{{ product.name }}</div>
+              {% if product.description %}
+              <div class="text-slate-400 text-[11px] truncate max-w-xs">{{ product.description }}</div>
+              {% endif %}
+            </td>
+            <td class="py-3 px-4">
+              <span class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-300 font-medium">
+                {{ product.category }}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-right font-mono font-semibold text-white">
+              ${{ "%.2f"|format(product.price) }}
+            </td>
+            <td class="py-3 px-4 text-center">
+              {% if product.stock > 10 %}
+              <span class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                {{ product.stock }} units
+              </span>
+              {% elif product.stock > 0 %}
+              <span class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                {{ product.stock }} low
+              </span>
+              {% else %}
+              <span class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                Out of Stock
+              </span>
+              {% endif %}
+            </td>
+            <td class="py-3 px-4 text-right font-mono text-slate-400">
+              {{ "%.3f"|format(product.weight_kg) }} kg
+            </td>
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              <div class="flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="openEditModal({
+                          id: '{{ product.id }}',
+                          sku: '{{ product.sku }}',
+                          name: '{{ product.name|replace("'", "\\'") }}',
+                          category: '{{ product.category|replace("'", "\\'") }}',
+                          price: '{{ product.price }}',
+                          stock: {{ product.stock }},
+                          weight_kg: '{{ product.weight_kg }}',
+                          description: '{{ (product.description or '')|replace("'", "\\'") }}'
+                        })"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors"
+                        title="Edit Product">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button type="button"
+                        @click="openDeleteModal({
+                          id: '{{ product.id }}',
+                          sku: '{{ product.sku }}',
+                          name: '{{ product.name|replace("'", "\\'") }}'
+                        })"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                        title="Delete Product">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div x-data="{
+       adminModalOpen: false,
+       adminEmail: '',
+       adminPassword: '',
+       adminFeedback: '',
+       async submitNewAdmin() {
+         const form = new FormData();
+         form.append('email', this.adminEmail);
+         form.append('password', this.adminPassword);
+         const res = await fetch('/admin/create-admin', { method: 'POST', body: form });
+         const html = await res.text();
+         this.adminFeedback = html;
+         if (res.ok) {
+           this.adminEmail = '';
+           this.adminPassword = '';
+           setTimeout(() => { window.location.reload(); }, 1200);
+         }
+       }
+     }">
+  <div x-show="adminModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+    <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" @click="adminModalOpen = false"></div>
+    <div class="flex min-h-full items-center justify-center p-4">
+      <div class="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+          <h3 class="text-base font-bold text-white">Create Administrator User</h3>
+          <button @click="adminModalOpen = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div x-html="adminFeedback" class="mt-4"></div>
+
+        <form @submit.prevent="submitNewAdmin()" class="space-y-4 mt-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Admin Email Address</label>
+            <input type="email" x-model="adminEmail" required placeholder="newadmin@enterprise.com"
+                   class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-purple-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Password</label>
+            <input type="password" x-model="adminPassword" required minlength="4" placeholder="••••••••"
+                   class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-purple-500">
+          </div>
+          <div class="flex justify-end gap-3 pt-3">
+            <button type="button" @click="adminModalOpen = false" class="px-4 py-2 text-xs text-slate-300 hover:text-white bg-slate-800 rounded-lg">Cancel</button>
+            <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg">Create Admin</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

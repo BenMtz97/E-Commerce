@@ -3,12 +3,18 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile, status
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import check_database_health, get_db
+from app.models import User
 from app.schemas import ProductCreate, ProductUpdate
+from app.security import (
+    create_session_token,
+    get_current_user_optional,
+    require_admin_user,
+)
 from app.services import (
     CsvImportService,
     DuplicateSkuException,
@@ -16,6 +22,8 @@ from app.services import (
     ProductNotFoundException,
     ProductService,
     PurchaseService,
+    UserAlreadyExistsException,
+    UserService,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -29,6 +37,7 @@ async def index_view(
     category: Optional[str] = None,
     page: int = 1,
     limit: int = 24,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     safe_page = max(1, page)
@@ -55,6 +64,7 @@ async def index_view(
             "current_page": safe_page,
             "total_pages": total_pages,
             "page_size": safe_limit,
+            "current_user": current_user,
         },
     )
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -70,9 +80,10 @@ async def index_html_view(
     category: Optional[str] = None,
     page: int = 1,
     limit: int = 24,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    return await index_view(request, query, category, page, limit, db)
+    return await index_view(request, query, category, page, limit, current_user, db)
 
 
 @router.get("/src/{path:path}")
@@ -92,6 +103,7 @@ async def product_grid_partial(
     category: Optional[str] = None,
     page: int = 1,
     limit: int = 24,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     safe_page = max(1, page)
@@ -116,6 +128,7 @@ async def product_grid_partial(
             "page_size": safe_limit,
             "active_category": category or "all",
             "active_query": query or "",
+            "current_user": current_user,
         },
     )
 
@@ -125,8 +138,20 @@ async def purchase_partial(
     request: Request,
     product_id: uuid.UUID = Form(...),
     quantity: int = Form(...),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
+    if not current_user:
+        return templates.TemplateResponse(
+            request,
+            "partials/purchase_result.html",
+            {
+                "success": False,
+                "product": None,
+                "message": "Authentication required. Please log in as a user to purchase products.",
+            },
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
     try:
         purchase_result = await PurchaseService.purchase_product(
             db=db,
@@ -503,4 +528,130 @@ async def api_health_view() -> JSONResponse:
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"status": "maintenance", "database": "disconnected"},
     )
+
+
+@router.get("/admin", response_class=HTMLResponse)
+async def admin_view(
+    request: Request,
+    query: Optional[str] = None,
+    category: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    if not current_user or current_user.role != "admin":
+        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    products, total_count = await ProductService.list_products(
+        db=db,
+        query=query,
+        category=category,
+        skip=0,
+        limit=100,
+    )
+    categories = await ProductService.list_categories(db)
+    admins = await UserService.list_admins(db)
+    return templates.TemplateResponse(
+        request,
+        "admin.html",
+        {
+            "products": products,
+            "categories": categories,
+            "total_count": total_count,
+            "current_user": current_user,
+            "admins": admins,
+            "active_category": category or "all",
+            "active_query": query or "",
+        },
+    )
+
+
+@router.post("/login", response_class=HTMLResponse)
+async def web_login(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    user = await UserService.authenticate(db, email, password)
+    if not user:
+        return HTMLResponse(
+            content='<div class="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">Invalid email or password.</div>',
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
+    token = create_session_token(user.id, user.email, user.role)
+    redirect_target = "/admin" if user.role == "admin" else "/"
+    response = HTMLResponse(
+        content=f'<script>window.location.href = "{redirect_target}";</script>',
+        status_code=status.HTTP_200_OK,
+    )
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 24 * 7,
+    )
+    return response
+
+
+@router.post("/register", response_class=HTMLResponse)
+async def web_register(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    try:
+        user = await UserService.register_user(db, email, password)
+        token = create_session_token(user.id, user.email, user.role)
+        response = HTMLResponse(
+            content='<script>window.location.href = "/";</script>',
+            status_code=status.HTTP_200_OK,
+        )
+        response.set_cookie(
+            key="session_token",
+            value=token,
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 60 * 24 * 7,
+        )
+        return response
+    except UserAlreadyExistsException as exc:
+        return HTMLResponse(
+            content=f'<div class="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">{str(exc)}</div>',
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
+@router.post("/logout")
+@router.get("/logout")
+async def web_logout() -> Response:
+    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    response.delete_cookie(key="session_token")
+    return response
+
+
+@router.post("/admin/create-admin", response_class=HTMLResponse)
+async def web_create_admin(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    if not current_user or current_user.role != "admin":
+        return HTMLResponse(
+            content='<div class="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">Unauthorized: Admin role required.</div>',
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    try:
+        new_admin = await UserService.create_admin(db, email, password)
+        return HTMLResponse(
+            content=f'<div class="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">Admin user {new_admin.email} created successfully.</div>',
+            status_code=status.HTTP_200_OK,
+        )
+    except UserAlreadyExistsException as exc:
+        return HTMLResponse(
+            content=f'<div class="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">{str(exc)}</div>',
+            status_code=status.HTTP_409_CONFLICT,
+        )
 

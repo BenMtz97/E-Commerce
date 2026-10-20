@@ -198,3 +198,61 @@ class CsvImportSummary(BaseModel):
     successful_imports: int
     failed_imports: int
     errors: List[CsvRowError]
+
+
+class UserLoginRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=1, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        validate_no_formula_injection(trimmed, "email")
+        validate_no_script_injection(trimmed, "email")
+        validate_no_sql_injection(trimmed, "email")
+        return trimmed
+
+
+class UserRegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=4, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        validate_no_formula_injection(trimmed, "email")
+        validate_no_script_injection(trimmed, "email")
+        validate_no_sql_injection(trimmed, "email")
+        return trimmed
+
+
+class AdminCreateRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    password: str = Field(..., min_length=4, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        validate_no_formula_injection(trimmed, "email")
+        validate_no_script_injection(trimmed, "email")
+        validate_no_sql_injection(trimmed, "email")
+        return trimmed
+
+
+class UserResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuthResponse(BaseModel):
+    user: UserResponse
+    token: str
+    message: str
+

@@ -1,0 +1,33 @@
+<div x-show="registerModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
+  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" @click="closeRegisterModal()"></div>
+  <div class="flex min-h-full items-center justify-center p-4">
+    <div class="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white">Create User Account</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Registration creates standard shopper accounts.</p>
+        </div>
+        <button @click="closeRegisterModal()" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <div x-html="registerFeedback" class="mt-4"></div>
+
+      <form @submit.prevent="submitRegister()" class="space-y-4 mt-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+          <input type="email" x-model="registerEmail" required placeholder="shopper@example.com"
+                 class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Password (min 4 characters)</label>
+          <input type="password" x-model="registerPassword" required minlength="4" placeholder="••••••••"
+                 class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="flex justify-end gap-3 pt-3">
+          <button type="button" @click="closeRegisterModal()" class="px-4 py-2 text-xs text-slate-300 hover:text-white bg-slate-800 rounded-lg">Cancel</button>
+          <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

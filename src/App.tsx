@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Upload,
@@ -21,7 +21,40 @@ import {
   Terminal,
   Code2,
   Menu,
+  UserCheck,
+  UserPlus,
+  LogIn,
+  LogOut,
+  Eye,
+  Shield,
+  List,
+  LayoutGrid,
 } from 'lucide-react';
+
+interface UserAccount {
+  id: string;
+  email: string;
+  role: 'admin' | 'user';
+}
+
+interface UserSession {
+  id: string;
+  email: string;
+  role: 'admin' | 'user';
+}
+
+const INITIAL_USERS: UserAccount[] = [
+  {
+    id: 'user-admin-01',
+    email: 'admin@admin.com',
+    role: 'admin',
+  },
+  {
+    id: 'user-normal-01',
+    email: 'user@user.com',
+    role: 'user',
+  },
+];
 
 interface ProductItem {
   id: string;
@@ -985,7 +1018,33 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'storefront' | 'concurrency' | 'architecture'>('storefront');
+  const [activeTab, setActiveTab] = useState<'storefront' | 'admin-list' | 'concurrency' | 'architecture'>('storefront');
+
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
+    try {
+      const stored = localStorage.getItem('ecommerce_app_session');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [registeredUsers, setRegisteredUsers] = useState<UserAccount[]>(INITIAL_USERS);
+
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const [registerModalOpen, setRegisterModalOpen] = useState(false);
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', confirmPassword: '' });
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  const [createAdminModalOpen, setCreateAdminModalOpen] = useState(false);
+  const [createAdminForm, setCreateAdminForm] = useState({ email: '', password: '', confirmPassword: '' });
+  const [createAdminError, setCreateAdminError] = useState<string | null>(null);
+  const [createAdminSuccess, setCreateAdminSuccess] = useState<string | null>(null);
+
+  const [viewProductModal, setViewProductModal] = useState<ProductItem | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(12);
@@ -1091,8 +1150,175 @@ export default function App() {
     setCurrentPage(1);
   };
 
+  const handleQuickDemoAdmin = () => {
+    const session: UserSession = { id: 'user-admin-01', email: 'admin@admin.com', role: 'admin' };
+    setCurrentUser(session);
+    localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+    setActiveTab('admin-list');
+  };
+
+  const handleQuickDemoUser = () => {
+    const session: UserSession = { id: 'user-normal-01', email: 'user@user.com', role: 'user' };
+    setCurrentUser(session);
+    localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+    setActiveTab('storefront');
+  };
+
+  const handleLoginSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setLoginError(null);
+    const email = loginForm.email.trim().toLowerCase();
+    const password = loginForm.password;
+
+    if (!email || !password) {
+      setLoginError('Email and password are required.');
+      return;
+    }
+
+    if (email === 'admin@admin.com' && password === 'admin') {
+      const session: UserSession = { id: 'user-admin-01', email: 'admin@admin.com', role: 'admin' };
+      setCurrentUser(session);
+      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+      setLoginModalOpen(false);
+      setLoginForm({ email: '', password: '' });
+      setActiveTab('admin-list');
+      return;
+    }
+
+    if (email === 'user@user.com' && password === 'user') {
+      const session: UserSession = { id: 'user-normal-01', email: 'user@user.com', role: 'user' };
+      setCurrentUser(session);
+      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+      setLoginModalOpen(false);
+      setLoginForm({ email: '', password: '' });
+      setActiveTab('storefront');
+      return;
+    }
+
+    const matched = registeredUsers.find((u) => u.email.toLowerCase() === email);
+    if (matched) {
+      const session: UserSession = { id: matched.id, email: matched.email, role: matched.role };
+      setCurrentUser(session);
+      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+      setLoginModalOpen(false);
+      setLoginForm({ email: '', password: '' });
+      if (matched.role === 'admin') {
+        setActiveTab('admin-list');
+      } else {
+        setActiveTab('storefront');
+      }
+      return;
+    }
+
+    setLoginError('Invalid credentials. Use admin@admin.com (admin) or user@user.com (user).');
+  };
+
+  const handleRegisterSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setRegisterError(null);
+    const email = registerForm.email.trim().toLowerCase();
+    const password = registerForm.password;
+    const confirm = registerForm.confirmPassword;
+
+    if (!email || !password) {
+      setRegisterError('Email and password are required.');
+      return;
+    }
+    if (password.length < 4) {
+      setRegisterError('Password must be at least 4 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setRegisterError('Passwords do not match.');
+      return;
+    }
+    if (registeredUsers.some((u) => u.email.toLowerCase() === email)) {
+      setRegisterError(`Account with email '${email}' already exists.`);
+      return;
+    }
+
+    const newUser: UserAccount = {
+      id: `user-${Date.now()}`,
+      email,
+      role: 'user',
+    };
+    setRegisteredUsers((prev) => [...prev, newUser]);
+    const session: UserSession = { id: newUser.id, email: newUser.email, role: 'user' };
+    setCurrentUser(session);
+    localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
+    setRegisterModalOpen(false);
+    setRegisterForm({ email: '', password: '', confirmPassword: '' });
+    setActiveTab('storefront');
+  };
+
+  const handleCreateAdminSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setCreateAdminError(null);
+    setCreateAdminSuccess(null);
+    if (!currentUser || currentUser.role !== 'admin') {
+      setCreateAdminError('Unauthorized: Only administrators can create other admin users.');
+      return;
+    }
+    const email = createAdminForm.email.trim().toLowerCase();
+    const password = createAdminForm.password;
+    const confirm = createAdminForm.confirmPassword;
+
+    if (!email || !password) {
+      setCreateAdminError('Email and password are required.');
+      return;
+    }
+    if (password.length < 4) {
+      setCreateAdminError('Password must be at least 4 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setCreateAdminError('Passwords do not match.');
+      return;
+    }
+    if (registeredUsers.some((u) => u.email.toLowerCase() === email)) {
+      setCreateAdminError(`Account with email '${email}' already exists.`);
+      return;
+    }
+
+    const newAdmin: UserAccount = {
+      id: `admin-${Date.now()}`,
+      email,
+      role: 'admin',
+    };
+    setRegisteredUsers((prev) => [...prev, newAdmin]);
+    setCreateAdminSuccess(`Administrator account '${email}' created successfully!`);
+    setCreateAdminForm({ email: '', password: '', confirmPassword: '' });
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('ecommerce_app_session');
+    setActiveTab('storefront');
+  };
+
+  const handleQuickAdjustStock = (productId: string, delta: number) => {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === productId) {
+          const newStock = Math.max(0, p.stock + delta);
+          return { ...p, stock: newStock };
+        }
+        return p;
+      })
+    );
+  };
+
   const handleOpenPurchase = (product: ProductItem) => {
     setActiveCardMenuId(null);
+    if (!currentUser) {
+      setLoginForm({ email: 'user@user.com', password: 'user' });
+      setLoginModalOpen(true);
+      return;
+    }
+    if (currentUser.role !== 'user') {
+      return;
+    }
     setPurchaseModalProduct(product);
     setPurchaseQty(1);
     setPurchaseStatus(null);
@@ -1707,75 +1933,222 @@ export default function App() {
     >
       <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-8">
-            <button
-              onClick={() => {
-                setActiveTab('storefront');
-                setCurrentPage(1);
-              }}
-              className="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-blue-400 transition-colors text-left"
-            >
-              E-COMMERCE APP
-            </button>
+          <div className="flex items-center justify-between h-16 gap-4">
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => {
+                  if (currentUser?.role === 'admin') {
+                    setActiveTab('admin-list');
+                  } else {
+                    setActiveTab('storefront');
+                  }
+                  setCurrentPage(1);
+                }}
+                className="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-blue-400 transition-colors text-left flex items-center gap-2"
+              >
+                <span>E-COMMERCE APP</span>
+                {currentUser?.role === 'admin' && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Admin
+                  </span>
+                )}
+                {currentUser?.role === 'user' && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    Shopper
+                  </span>
+                )}
+              </button>
 
-            <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
-              <button
-                onClick={() => setActiveTab('storefront')}
-                className={`transition-colors whitespace-nowrap shrink-0 ${
-                  activeTab === 'storefront' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
-                }`}
-              >
-                Catalog
-              </button>
-              <button
-                onClick={() => setActiveTab('concurrency')}
-                className={`transition-colors whitespace-nowrap shrink-0 ${
-                  activeTab === 'concurrency' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
-                }`}
-              >
-                Concurrency Simulator
-              </button>
-              <button
-                onClick={() => setActiveTab('architecture')}
-                className={`transition-colors whitespace-nowrap shrink-0 ${
-                  activeTab === 'architecture' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
-                }`}
-              >
-                Architecture
-              </button>
-              <a
-                href="/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white transition-colors whitespace-nowrap shrink-0 text-slate-400"
-              >
-                API Docs
-              </a>
-            </nav>
+              <nav className="hidden lg:flex items-center gap-5 text-xs font-medium text-slate-300">
+                {currentUser?.role === 'admin' ? (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('admin-list')}
+                      className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                        activeTab === 'admin-list' ? 'text-purple-300 font-semibold' : 'hover:text-white text-slate-400'
+                      }`}
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>Admin Inventory (List)</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('storefront')}
+                      className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                        activeTab === 'storefront' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
+                      }`}
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Storefront Preview</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setActiveTab('storefront')}
+                    className={`transition-colors whitespace-nowrap shrink-0 ${
+                      activeTab === 'storefront' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
+                    }`}
+                  >
+                    Catalog
+                  </button>
+                )}
 
-            <div className="flex md:hidden">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 focus:outline-none"
-                aria-label="Toggle navigation menu"
-              >
-                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
+                <button
+                  onClick={() => setActiveTab('concurrency')}
+                  className={`transition-colors whitespace-nowrap shrink-0 ${
+                    activeTab === 'concurrency' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
+                  }`}
+                >
+                  Concurrency Simulator
+                </button>
+                <button
+                  onClick={() => setActiveTab('architecture')}
+                  className={`transition-colors whitespace-nowrap shrink-0 ${
+                    activeTab === 'architecture' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
+                  }`}
+                >
+                  Architecture
+                </button>
+                <a
+                  href="/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors whitespace-nowrap shrink-0 text-slate-400"
+                >
+                  API Docs
+                </a>
+              </nav>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {currentUser ? (
+                <div className="flex items-center gap-2">
+                  {currentUser.role === 'admin' ? (
+                    <>
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-300">
+                        <Shield className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="font-mono">{currentUser.email}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setCreateAdminError(null);
+                          setCreateAdminSuccess(null);
+                          setCreateAdminModalOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-colors"
+                      >
+                        <UserPlus className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="hidden sm:inline">Create Admin</span>
+                      </button>
+                    </>
+                  ) : (
+                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="font-mono">{currentUser.email}</span>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleLogout}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-500/20 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log out</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleQuickDemoAdmin}
+                    type="button"
+                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-purple-300 bg-purple-950/50 hover:bg-purple-900/70 border border-purple-500/30 rounded-lg transition-colors"
+                    title="Quick log in with admin@admin.com / admin"
+                  >
+                    <Shield className="w-3 h-3 text-purple-400" />
+                    <span>Demo Admin</span>
+                  </button>
+                  <button
+                    onClick={handleQuickDemoUser}
+                    type="button"
+                    className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 bg-emerald-950/50 hover:bg-emerald-900/70 border border-emerald-500/30 rounded-lg transition-colors"
+                    title="Quick log in with user@user.com / user"
+                  >
+                    <UserCheck className="w-3 h-3 text-emerald-400" />
+                    <span>Demo User</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setLoginError(null);
+                      setLoginForm({ email: '', password: '' });
+                      setLoginModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors"
+                  >
+                    <LogIn className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Login</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setRegisterError(null);
+                      setRegisterForm({ email: '', password: '', confirmPassword: '' });
+                      setRegisterModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Register</span>
+                  </button>
+                </div>
+              )}
+
+              <div className="flex lg:hidden">
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 focus:outline-none"
+                  aria-label="Toggle navigation menu"
+                >
+                  {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {mobileMenuOpen && (
-          <div className="md:hidden border-b border-slate-800 bg-slate-900/95 px-4 pt-2 pb-4 space-y-2">
-            <button
-              onClick={() => {
-                setActiveTab('storefront');
-                setMobileMenuOpen(false);
-              }}
-              className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
-            >
-              Catalog
-            </button>
+          <div className="lg:hidden border-b border-slate-800 bg-slate-900/95 px-4 pt-2 pb-4 space-y-2">
+            {currentUser?.role === 'admin' ? (
+              <>
+                <button
+                  onClick={() => {
+                    setActiveTab('admin-list');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left py-2 text-sm font-medium text-purple-300 hover:text-white"
+                >
+                  Admin Inventory (List View)
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('storefront');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
+                >
+                  Storefront Preview
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setActiveTab('storefront');
+                  setMobileMenuOpen(false);
+                }}
+                className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
+              >
+                Catalog
+              </button>
+            )}
             <button
               onClick={() => {
                 setActiveTab('concurrency');
@@ -1794,18 +2167,32 @@ export default function App() {
             >
               Architecture
             </button>
-            <a
-              href="/docs"
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
-            >
-              API Docs
-            </a>
+            {!currentUser && (
+              <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    handleQuickDemoAdmin();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-2.5 py-1 text-xs rounded bg-purple-950/60 text-purple-300 border border-purple-500/30"
+                >
+                  Demo Admin
+                </button>
+                <button
+                  onClick={() => {
+                    handleQuickDemoUser();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-2.5 py-1 text-xs rounded bg-emerald-950/60 text-emerald-300 border border-emerald-500/30"
+                >
+                  Demo User
+                </button>
+              </div>
+            )}
           </div>
         )}
       </header>
+
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'storefront' && (
@@ -1821,26 +2208,38 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleOpenCreate}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create product</span>
-                </button>
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('admin-list')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 rounded-lg transition-colors"
+                    >
+                      <List className="w-4 h-4 text-purple-400" />
+                      <span>Admin List View &rarr;</span>
+                    </button>
 
-                <button
-                  onClick={() => {
-                    setCsvModalOpen(true);
-                    setCsvSummary(null);
-                    setSelectedCsvFile(null);
-                    setSelectedCsvContent(null);
-                  }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-200 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg transition-colors"
-                >
-                  <Upload className="w-4 h-4 text-slate-400" />
-                  <span>Upload CSV</span>
-                </button>
+                    <button
+                      onClick={handleOpenCreate}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create product</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCsvModalOpen(true);
+                        setCsvSummary(null);
+                        setSelectedCsvFile(null);
+                        setSelectedCsvContent(null);
+                      }}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-200 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg transition-colors"
+                    >
+                      <Upload className="w-4 h-4 text-slate-400" />
+                      <span>Upload CSV</span>
+                    </button>
+                  </>
+                )}
 
                 <button
                   onClick={handleDownloadSampleCsv}
@@ -1969,48 +2368,63 @@ export default function App() {
                             <span className="font-mono text-slate-400 truncate">{product.sku}</span>
                           </div>
 
-                          <div className="relative ml-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveCardMenuId(activeCardMenuId === product.id ? null : product.id);
-                              }}
-                              className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                              aria-label="Product options"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-
-                            {activeCardMenuId === product.id && (
-                              <div
-                                className="absolute right-0 mt-1 w-36 rounded-lg bg-slate-950 border border-slate-800 py-1 shadow-2xl z-30"
-                                onClick={(e) => e.stopPropagation()}
+                          {currentUser?.role === 'admin' && (
+                            <div className="relative ml-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveCardMenuId(activeCardMenuId === product.id ? null : product.id);
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                                aria-label="Product options"
                               >
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEdit(product)}
-                                  className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition-colors text-left"
+                                <MoreVertical className="w-4 h-4" />
+                              </button>
+
+                              {activeCardMenuId === product.id && (
+                                <div
+                                  className="absolute right-0 mt-1 w-36 rounded-lg bg-slate-950 border border-slate-800 py-1 shadow-2xl z-30"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Pencil className="w-3.5 h-3.5 text-blue-400" />
-                                  <span>Edit Product</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenDelete(product)}
-                                  className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors text-left"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                                  <span>Delete Product</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(product)}
+                                    className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition-colors text-left"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-blue-400" />
+                                    <span>Edit Product</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDelete(product)}
+                                    className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors text-left"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                                    <span>Delete Product</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        <h3 className="text-base font-semibold text-white tracking-tight leading-snug mb-2">
-                          {product.name}
-                        </h3>
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h3
+                            onClick={() => setViewProductModal(product)}
+                            className="text-base font-semibold text-white tracking-tight leading-snug cursor-pointer hover:text-blue-400 transition-colors flex-1"
+                          >
+                            {product.name}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setViewProductModal(product)}
+                            className="p-1 text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                            title="View product details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
 
                         <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4">
                           {product.description}
@@ -2051,19 +2465,29 @@ export default function App() {
                           </span>
                         </div>
 
-                        {product.stock > 0 ? (
+                        {currentUser?.role === 'user' && (
+                          product.stock > 0 ? (
+                            <button
+                              onClick={() => handleOpenPurchase(product)}
+                              className="px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap shadow-sm shadow-blue-500/20"
+                            >
+                              Buy Now
+                            </button>
+                          ) : (
+                            <button
+                              disabled
+                              className="px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed whitespace-nowrap"
+                            >
+                              Sold Out
+                            </button>
+                          )
+                        )}
+                        {currentUser?.role === 'admin' && (
                           <button
-                            onClick={() => handleOpenPurchase(product)}
-                            className="px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap shadow-sm shadow-blue-500/20"
+                            onClick={() => handleOpenEdit(product)}
+                            className="px-3 py-1.5 text-xs font-medium text-purple-300 hover:text-white bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 rounded-lg transition-colors"
                           >
-                            Buy Now
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed whitespace-nowrap"
-                          >
-                            Sold Out
+                            Edit Item
                           </button>
                         )}
                       </div>
@@ -2170,6 +2594,303 @@ export default function App() {
                 </button>
               </div>
             )}
+          </section>
+        )}
+
+        {activeTab === 'admin-list' && (
+          <section className="space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-purple-500/15 text-purple-300 border border-purple-500/30 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Admin Control Center</span>
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Logged in as <strong className="text-white font-mono">{currentUser?.email || 'admin@admin.com'}</strong>
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  Product Inventory (List View)
+                </h1>
+                <p className="text-xs text-slate-400 mt-1">
+                  Enterprise tabular catalog for administrators. Modify pricing, adjust stock, create items, and delete catalog entries.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={handleOpenCreate}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Product</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCsvModalOpen(true);
+                    setCsvSummary(null);
+                    setSelectedCsvFile(null);
+                    setSelectedCsvContent(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-200 bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-lg transition-colors"
+                >
+                  <Upload className="w-4 h-4 text-slate-400" />
+                  <span>Upload CSV</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCreateAdminError(null);
+                    setCreateAdminSuccess(null);
+                    setCreateAdminModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-purple-200 bg-purple-950/40 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-colors"
+                >
+                  <UserPlus className="w-4 h-4 text-purple-400" />
+                  <span>Create Admin User</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadSampleCsv}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4 text-slate-400" />
+                  <span>Sample CSV</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs text-slate-400 block mb-1">Catalog SKUs</span>
+                <span className="text-2xl font-bold font-mono text-white">{products.length}</span>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs text-slate-400 block mb-1">Total Stock Units</span>
+                <span className="text-2xl font-bold font-mono text-emerald-400">
+                  {products.reduce((acc, curr) => acc + curr.stock, 0)}
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs text-slate-400 block mb-1">Out of Stock Alerts</span>
+                <span className="text-2xl font-bold font-mono text-rose-400">
+                  {products.filter((p) => p.stock <= 0).length}
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+                <span className="text-xs text-slate-400 block mb-1">Admin Accounts</span>
+                <span className="text-2xl font-bold font-mono text-purple-400">
+                  {registeredUsers.filter((u) => u.role === 'admin').length}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="relative w-full">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Search className="w-5 h-5" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder="Search catalog by SKU, model name, specification, or category..."
+                  className="block w-full pl-11 pr-11 py-3 text-sm text-white placeholder-slate-500 bg-slate-900/90 border border-slate-800 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-inner"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => handleSearchChange('')}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin flex-1 min-w-0">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider shrink-0 pr-1">
+                    Category:
+                  </span>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => handleCategoryChange(cat)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0 ${
+                        selectedCategory === cat
+                          ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/20'
+                          : 'bg-slate-900 text-slate-300 hover:text-white border border-slate-800/80'
+                      }`}
+                    >
+                      {cat === 'All' ? 'All Items' : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {(selectedCategory !== 'All' || searchQuery) && (
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('All');
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
+                    className="text-xs text-slate-400 hover:text-white shrink-0 px-2.5 py-1 rounded hover:bg-slate-900 transition-colors"
+                  >
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="py-3.5 px-4">SKU</th>
+                      <th className="py-3.5 px-4">Product Name & Category</th>
+                      <th className="py-3.5 px-4 text-right">Price</th>
+                      <th className="py-3.5 px-4 text-center">Stock Level</th>
+                      <th className="py-3.5 px-4 text-right">Weight</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                    {paginatedProducts.length > 0 ? (
+                      paginatedProducts.map((product) => (
+                        <tr key={product.id} className="hover:bg-slate-900/80 transition-colors">
+                          <td className="py-3 px-4 font-mono font-semibold text-blue-400 whitespace-nowrap">
+                            {product.sku}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-white text-sm">{product.name}</div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-300">
+                                {product.category}
+                              </span>
+                              {product.description && (
+                                <span className="text-slate-400 text-xs truncate max-w-md">
+                                  {product.description}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm">
+                            ${product.price.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                onClick={() => handleQuickAdjustStock(product.id, -1)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                                title="Decrease stock by 1"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <span
+                                className={`px-2 py-0.5 rounded font-mono font-semibold text-[11px] min-w-[70px] inline-block ${
+                                  product.stock > 10
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                    : product.stock > 0
+                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                }`}
+                              >
+                                {product.stock > 0 ? `${product.stock} units` : 'Out of Stock'}
+                              </span>
+                              <button
+                                onClick={() => handleQuickAdjustStock(product.id, 1)}
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+                                title="Increase stock by 1"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-400 whitespace-nowrap">
+                            {product.weight_kg.toFixed(3)} kg
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenEdit(product)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-colors"
+                                title="Edit Product"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenDelete(product)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
+                                title="Delete Product"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                          No matching products in catalog inventory.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {pageSize !== -1 && totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t border-slate-800 bg-slate-950/60">
+                  <p className="text-xs text-slate-400">
+                    Page <span className="font-mono text-slate-200">{safeCurrentPage}</span> of{' '}
+                    <span className="font-mono text-slate-200">{totalPages}</span> &middot;{' '}
+                    <span className="font-mono text-slate-200">{filteredProducts.length}</span> total items
+                  </p>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={safeCurrentPage <= 1}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      aria-label="First page"
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={safeCurrentPage <= 1}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <span className="px-3 py-1 text-xs font-mono font-medium rounded-lg bg-slate-900 border border-slate-800 text-white">
+                      {safeCurrentPage}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safeCurrentPage >= totalPages}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={safeCurrentPage >= totalPages}
+                      className="p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      aria-label="Last page"
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
         )}
 
@@ -3263,6 +3984,502 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {loginModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setLoginModalOpen(false)}
+          />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
+                <div>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-blue-400">
+                    Authentication
+                  </span>
+                  <h3 className="text-lg font-bold text-white mt-0.5">Account Sign In</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Log in as an Administrator to manage products, or as a User to purchase.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setLoginModalOpen(false)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 block">
+                  Quick 1-Click Credentials
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginForm({ email: 'admin@admin.com', password: 'admin' });
+                      setLoginError(null);
+                    }}
+                    className="p-2 rounded-lg text-left bg-purple-950/40 hover:bg-purple-900/50 border border-purple-500/30 transition-colors"
+                  >
+                    <span className="text-xs font-bold text-purple-300 block">Admin</span>
+                    <span className="text-[10px] font-mono text-purple-400 block truncate">admin@admin.com</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">pw: admin</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginForm({ email: 'user@user.com', password: 'user' });
+                      setLoginError(null);
+                    }}
+                    className="p-2 rounded-lg text-left bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/30 transition-colors"
+                  >
+                    <span className="text-xs font-bold text-emerald-300 block">User</span>
+                    <span className="text-[10px] font-mono text-emerald-400 block truncate">user@user.com</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">pw: user</span>
+                  </button>
+                </div>
+              </div>
+
+              {loginError && (
+                <div className="mb-4 p-3 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    required
+                    placeholder="admin@admin.com or user@user.com"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                  <input
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginModalOpen(false);
+                      setRegisterError(null);
+                      setRegisterForm({ email: '', password: '', confirmPassword: '' });
+                      setRegisterModalOpen(true);
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Need an account? Register here &rarr;
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setLoginModalOpen(false)}
+                      className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                    >
+                      Log In
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {registerModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setRegisterModalOpen(false)}
+          />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
+                <div>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-emerald-400">
+                    Registration
+                  </span>
+                  <h3 className="text-lg font-bold text-white mt-0.5">Register New Account</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Public registration is reserved for standard shopper users only.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setRegisterModalOpen(false)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4 p-3 rounded-lg bg-emerald-950/30 border border-emerald-500/30 text-xs text-emerald-300 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Role Notice:</strong> Only normal users can be registered via this form. Admin users can only be provisioned by existing administrators.
+                </span>
+              </div>
+
+              {registerError && (
+                <div className="mb-4 p-3 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{registerError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                    required
+                    placeholder="shopper@enterprise.com"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Password (min 4 characters)</label>
+                  <input
+                    type="password"
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    required
+                    minLength={4}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={registerForm.confirmPassword}
+                    onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegisterModalOpen(false);
+                      setLoginError(null);
+                      setLoginModalOpen(true);
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    Already have an account? Log in &rarr;
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegisterModalOpen(false)}
+                      className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                    >
+                      Create User Account
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createAdminModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setCreateAdminModalOpen(false)}
+          />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
+                <div>
+                  <span className="text-xs uppercase tracking-wider font-semibold text-purple-400">
+                    Administrator Management
+                  </span>
+                  <h3 className="text-lg font-bold text-white mt-0.5">Provision New Admin User</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Authorized administrators can grant administrator privileges to new users.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCreateAdminModalOpen(false)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {createAdminSuccess && (
+                <div className="mb-4 p-3 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-300 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>{createAdminSuccess}</span>
+                </div>
+              )}
+
+              {createAdminError && (
+                <div className="mb-4 p-3 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{createAdminError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateAdminSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Admin Email Address</label>
+                  <input
+                    type="email"
+                    value={createAdminForm.email}
+                    onChange={(e) => setCreateAdminForm({ ...createAdminForm, email: e.target.value })}
+                    required
+                    placeholder="newadmin@enterprise.com"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Password (min 4 characters)</label>
+                  <input
+                    type="password"
+                    value={createAdminForm.password}
+                    onChange={(e) => setCreateAdminForm({ ...createAdminForm, password: e.target.value })}
+                    required
+                    minLength={4}
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={createAdminForm.confirmPassword}
+                    onChange={(e) => setCreateAdminForm({ ...createAdminForm, confirmPassword: e.target.value })}
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Standard password hashing (PBKDF2)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCreateAdminModalOpen(false)}
+                      className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors shadow-sm shadow-purple-500/20"
+                    >
+                      Create Administrator
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="mt-5 pt-4 border-t border-slate-800/80">
+                <span className="text-xs font-semibold text-slate-400 block mb-2">
+                  Configured Administrator Accounts ({registeredUsers.filter((u) => u.role === 'admin').length}):
+                </span>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {registeredUsers
+                    .filter((u) => u.role === 'admin')
+                    .map((admin) => (
+                      <div
+                        key={admin.id}
+                        className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800/80 text-xs"
+                      >
+                        <span className="font-mono text-purple-300">{admin.email}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-400">Admin</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewProductModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+          <div
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setViewProductModal(null)}
+          />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="relative w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between border-b border-slate-800 pb-4 mb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300">
+                      {viewProductModal.category}
+                    </span>
+                    <span className="font-mono text-xs text-blue-400 font-semibold">{viewProductModal.sku}</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-white">{viewProductModal.name}</h3>
+                </div>
+                <button
+                  onClick={() => setViewProductModal(null)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="text-xs font-semibold uppercase text-slate-400 block mb-1">
+                    Specification & Description
+                  </span>
+                  <p className="text-sm text-slate-300 leading-relaxed bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    {viewProductModal.description || 'No detailed description provided for this catalog item.'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-xs text-slate-500 block">Unit Price</span>
+                    <span className="text-lg font-bold font-mono text-white">
+                      ${viewProductModal.price.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-xs text-slate-500 block">Available Stock</span>
+                    <span
+                      className={`text-lg font-bold font-mono ${
+                        viewProductModal.stock > 10
+                          ? 'text-emerald-400'
+                          : viewProductModal.stock > 0
+                          ? 'text-amber-400'
+                          : 'text-rose-400'
+                      }`}
+                    >
+                      {viewProductModal.stock} units
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+                    <span className="text-xs text-slate-500 block">Item Weight</span>
+                    <span className="text-lg font-bold font-mono text-slate-300">
+                      {viewProductModal.weight_kg.toFixed(3)} kg
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
+                  <span className="text-xs text-slate-400 font-mono">ID: {viewProductModal.id.substring(0, 8)}...</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewProductModal(null)}
+                      className="px-4 py-2 text-xs text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                    >
+                      Close
+                    </button>
+                    {currentUser?.role === 'user' && (
+                      viewProductModal.stock > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const p = viewProductModal;
+                            setViewProductModal(null);
+                            handleOpenPurchase(p);
+                          }}
+                          className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-sm shadow-blue-500/20"
+                        >
+                          Buy Now &rarr;
+                        </button>
+                      ) : (
+                        <button
+                          disabled
+                          className="px-4 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed"
+                        >
+                          Out of Stock
+                        </button>
+                      )
+                    )}
+                    {currentUser?.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = viewProductModal;
+                          setViewProductModal(null);
+                          handleOpenEdit(p);
+                        }}
+                        className="px-4 py-2 text-xs font-semibold text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 rounded-lg"
+                      >
+                        Edit Item
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

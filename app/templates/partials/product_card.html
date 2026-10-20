@@ -9,6 +9,7 @@
         <span class="font-mono text-slate-400 truncate">{{ product.sku }}</span>
       </div>
 
+      {% if current_user and current_user.role == 'admin' %}
       <div class="relative ml-2 shrink-0">
         <button @click="cardMenuOpen = !cardMenuOpen"
                 @click.stop
@@ -51,6 +52,7 @@
           </button>
         </div>
       </div>
+      {% endif %}
     </div>
 
     <h3 class="text-base font-semibold text-white tracking-tight leading-snug mb-2">
@@ -84,24 +86,31 @@
       <span class="text-lg font-bold font-mono text-white tracking-tight">${{ "%.2f"|format(product.price) }}</span>
     </div>
 
-    {% if product.stock > 0 %}
-    <button @click="openPurchaseModal({
-              id: '{{ product.id }}',
-              sku: '{{ product.sku }}',
-              name: '{{ product.name|replace("'", "\\'") }}',
-              price: {{ product.price }},
-              stock: {{ product.stock }}
-            })"
-            type="button"
-            class="px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap shadow-sm shadow-blue-500/20">
-      Buy Now
-    </button>
-    {% else %}
-    <button disabled
-            type="button"
-            class="px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed whitespace-nowrap">
-      Sold Out
-    </button>
+    {% if current_user and current_user.role == 'user' %}
+      {% if product.stock > 0 %}
+      <button @click="openPurchaseModal({
+                id: '{{ product.id }}',
+                sku: '{{ product.sku }}',
+                name: '{{ product.name|replace("'", "\\'") }}',
+                price: {{ product.price }},
+                stock: {{ product.stock }}
+              })"
+              type="button"
+              class="px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap shadow-sm shadow-blue-500/20">
+        Buy Now
+      </button>
+      {% else %}
+      <button disabled
+              type="button"
+              class="px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed whitespace-nowrap">
+        Sold Out
+      </button>
+      {% endif %}
+    {% elif current_user and current_user.role == 'admin' %}
+      <a href="/admin"
+         class="px-3 py-1.5 text-xs font-medium text-purple-300 hover:text-white bg-purple-950/40 hover:bg-purple-900/60 rounded-lg border border-purple-500/30 transition-colors">
+        Manage in List
+      </a>
     {% endif %}
   </div>
 </div>

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
         "TEST_DATABASE_URL",
         "sqlite+aiosqlite:///:memory:"
     )
+    SECRET_KEY: str = os.getenv(
+        "SECRET_KEY",
+        "kinetic-production-grade-session-secret-key-2026"
+    )
 
 
 settings = Settings()

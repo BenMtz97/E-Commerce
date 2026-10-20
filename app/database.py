@@ -77,12 +77,42 @@ async def init_db() -> None:
                 raise
 
     async with async_session_factory() as session:
+        from app.models import User
+        from app.security import hash_password
+
+        admin_result = await session.execute(
+            select(User).where(User.email == "admin@admin.com")
+        )
+        if admin_result.scalar_one_or_none() is None:
+            session.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="admin@admin.com",
+                    hashed_password=hash_password("admin"),
+                    role="admin",
+                )
+            )
+
+        user_result = await session.execute(
+            select(User).where(User.email == "user@user.com")
+        )
+        if user_result.scalar_one_or_none() is None:
+            session.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="user@user.com",
+                    hashed_password=hash_password("user"),
+                    role="user",
+                )
+            )
+
         existing_result = await session.execute(select(Product).limit(1))
         first_product = existing_result.scalar_one_or_none()
         if first_product is None:
             initial_catalog = []
             session.add_all(initial_catalog)
-            await session.commit()
+
+        await session.commit()
 
     _db_initialized = True
 

@@ -9,7 +9,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Product
+from app.models import Product, User
+from app.security import hash_password, verify_password
 from app.schemas import (
     SKU_ALLOWED_PATTERN,
     CsvImportSummary,
@@ -463,3 +464,92 @@ class CsvImportService:
             failed_imports=len(errors),
             errors=errors,
         )
+
+
+class UserAlreadyExistsException(ProductDomainException):
+    def __init__(self, email: str) -> None:
+        super().__init__(f"User with email '{email}' already exists.")
+        self.email = email
+
+
+class InvalidCredentialsException(ProductDomainException):
+    def __init__(self) -> None:
+        super().__init__("Invalid email or password.")
+
+
+class UserService:
+    @staticmethod
+    async def get_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
+        result = await db.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_email(db: AsyncSession, email: str) -> Optional[User]:
+        clean_email = email.strip().lower()
+        result = await db.execute(select(User).where(User.email == clean_email))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def authenticate(
+        db: AsyncSession, email: str, password: str
+    ) -> Optional[User]:
+        user = await UserService.get_by_email(db, email)
+        if not user:
+            return None
+        if not verify_password(password, user.hashed_password):
+            return None
+        return user
+
+    @staticmethod
+    async def register_user(
+        db: AsyncSession, email: str, password: str
+    ) -> User:
+        clean_email = email.strip().lower()
+        existing = await UserService.get_by_email(db, clean_email)
+        if existing:
+            raise UserAlreadyExistsException(clean_email)
+        user = User(
+            id=uuid.uuid4(),
+            email=clean_email,
+            hashed_password=hash_password(password),
+            role="user",
+        )
+        db.add(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+            return user
+        except IntegrityError:
+            await db.rollback()
+            raise UserAlreadyExistsException(clean_email)
+
+    @staticmethod
+    async def create_admin(
+        db: AsyncSession, email: str, password: str
+    ) -> User:
+        clean_email = email.strip().lower()
+        existing = await UserService.get_by_email(db, clean_email)
+        if existing:
+            raise UserAlreadyExistsException(clean_email)
+        user = User(
+            id=uuid.uuid4(),
+            email=clean_email,
+            hashed_password=hash_password(password),
+            role="admin",
+        )
+        db.add(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+            return user
+        except IntegrityError:
+            await db.rollback()
+            raise UserAlreadyExistsException(clean_email)
+
+    @staticmethod
+    async def list_admins(db: AsyncSession) -> List[User]:
+        result = await db.execute(
+            select(User).where(User.role == "admin").order_by(User.email.asc())
+        )
+        return list(result.scalars().all())
+
