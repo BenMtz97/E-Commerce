@@ -346,26 +346,43 @@ async def create_product_partial(
 
 
 @router.post("/partials/products/{product_id}/update", response_class=HTMLResponse)
+@router.put("/partials/products/{product_id}/update", response_class=HTMLResponse)
+@router.patch("/partials/products/{product_id}/update", response_class=HTMLResponse)
+@router.post("/partials/products/{product_id}", response_class=HTMLResponse)
+@router.put("/partials/products/{product_id}", response_class=HTMLResponse)
+@router.patch("/partials/products/{product_id}", response_class=HTMLResponse)
 async def update_product_partial(
     request: Request,
     product_id: uuid.UUID,
-    name: str = Form(...),
-    category: str = Form(...),
-    price: Decimal = Form(...),
-    stock: int = Form(...),
-    weight_kg: Decimal = Form(...),
+    name: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    price: Optional[Decimal] = Form(None),
+    stock: Optional[int] = Form(None),
+    weight_kg: Optional[Decimal] = Form(None),
     description: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     try:
-        payload = ProductUpdate(
-            name=name,
-            category=category,
-            price=price,
-            stock=stock,
-            weight_kg=weight_kg,
-            description=description,
-        )
+        content_type = request.headers.get("content-type", "").lower()
+        if "application/json" in content_type:
+            body = await request.json()
+            payload = ProductUpdate(
+                name=body.get("name"),
+                category=body.get("category"),
+                price=Decimal(str(body.get("price"))) if body.get("price") is not None else None,
+                stock=int(body.get("stock")) if body.get("stock") is not None else None,
+                weight_kg=Decimal(str(body.get("weight_kg"))) if body.get("weight_kg") is not None else None,
+                description=body.get("description"),
+            )
+        else:
+            payload = ProductUpdate(
+                name=name,
+                category=category,
+                price=price,
+                stock=stock,
+                weight_kg=weight_kg,
+                description=description,
+            )
         product = await ProductService.update_product(db, product_id, payload)
         return templates.TemplateResponse(
             request,
@@ -387,7 +404,7 @@ async def update_product_partial(
 
 @router.delete("/partials/products/{product_id}")
 @router.post("/partials/products/{product_id}/delete")
-@router.post("/partials/products/{product_id}")
+@router.delete("/partials/products/{product_id}/delete")
 async def delete_product_partial(
     product_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

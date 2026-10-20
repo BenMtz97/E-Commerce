@@ -1348,6 +1348,19 @@ export default function App() {
 
     setEditSuccessProduct(updatedProduct);
     setEditFormError(null);
+
+    fetch(`/api/products/${editModalProduct.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: updatedProduct.name,
+        category: updatedProduct.category,
+        price: updatedProduct.price,
+        stock: updatedProduct.stock,
+        weight_kg: updatedProduct.weight_kg,
+        description: updatedProduct.description,
+      }),
+    }).catch(() => {});
   };
 
   const handleContinueEdit = () => {

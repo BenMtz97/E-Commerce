@@ -78,6 +78,11 @@ async def create_product(
 
 
 @router.put("/{product_id}", response_model=ProductResponse, status_code=status.HTTP_200_OK)
+@router.post("/{product_id}", response_model=ProductResponse, status_code=status.HTTP_200_OK)
+@router.patch("/{product_id}", response_model=ProductResponse, status_code=status.HTTP_200_OK)
+@router.put("/{product_id}/update", response_model=ProductResponse, status_code=status.HTTP_200_OK)
+@router.post("/{product_id}/update", response_model=ProductResponse, status_code=status.HTTP_200_OK)
+@router.patch("/{product_id}/update", response_model=ProductResponse, status_code=status.HTTP_200_OK)
 async def update_product(
     product_id: uuid.UUID,
     payload: ProductUpdate,

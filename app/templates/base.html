@@ -62,6 +62,34 @@
         closeEditModal() {
           this.editModalOpen = false;
         },
+        async submitEdit(e) {
+          if (e) e.preventDefault();
+          if (!this.editProduct) return;
+          const target = this.editProduct;
+          const formData = new FormData();
+          formData.append('name', target.name);
+          formData.append('category', target.category);
+          formData.append('price', target.price);
+          formData.append('stock', target.stock);
+          formData.append('weight_kg', target.weight_kg);
+          if (target.description) {
+            formData.append('description', target.description);
+          }
+          try {
+            const res = await fetch('/partials/products/' + target.id + '/update', {
+              method: 'POST',
+              body: formData
+            });
+            if (res.ok) {
+              const html = await res.text();
+              const card = document.getElementById('product-card-' + target.id);
+              if (card) {
+                card.outerHTML = html;
+              }
+              this.closeEditModal();
+            }
+          } catch (err) {}
+        },
         deleteProductSuccess: null,
         openDeleteModal(product) {
           this.deleteProduct = product;

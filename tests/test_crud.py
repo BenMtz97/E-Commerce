@@ -144,6 +144,28 @@ async def test_update_product_success(
     assert float(data["price"]) == 129.00
     assert data["stock"] == 25
 
+    post_payload = {
+        "name": "Updated via POST Method",
+        "price": "139.50",
+    }
+    post_response = await client.post(f"/api/products/{sample_product.id}", json=post_payload)
+    assert post_response.status_code == 200
+    assert post_response.json()["name"] == "Updated via POST Method"
+
+    partial_form_data = {
+        "name": "Updated via Partial Route",
+        "category": "Testing",
+        "price": "145.00",
+        "stock": "30",
+        "weight_kg": "0.500",
+    }
+    partial_response = await client.post(
+        f"/partials/products/{sample_product.id}/update",
+        data=partial_form_data,
+    )
+    assert partial_response.status_code == 200
+    assert "Updated via Partial Route" in partial_response.text
+
 
 @pytest.mark.asyncio
 async def test_delete_product_success(
