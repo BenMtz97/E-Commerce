@@ -1,0 +1,107 @@
+<div id="product-card-{{ product.id }}"
+     x-data="{ cardMenuOpen: false }"
+     class="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-900/60 p-5 transition-all duration-200 hover:border-slate-700 hover:shadow-lg hover:shadow-blue-950/20 relative">
+  <div>
+    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+      <div class="flex items-center gap-1.5 overflow-hidden">
+        <span class="tracking-wider uppercase font-medium text-slate-400 truncate">{{ product.category }}</span>
+        <span aria-hidden="true">&middot;</span>
+        <span class="font-mono text-slate-400 truncate">{{ product.sku }}</span>
+      </div>
+
+      <div class="relative ml-2 shrink-0">
+        <button @click="cardMenuOpen = !cardMenuOpen"
+                @click.stop
+                type="button"
+                class="p-1 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                aria-label="Product actions">
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="5" r="2"></circle>
+            <circle cx="12" cy="12" r="2"></circle>
+            <circle cx="12" cy="19" r="2"></circle>
+          </svg>
+        </button>
+
+        <div x-show="cardMenuOpen"
+             @click.outside="cardMenuOpen = false"
+             x-cloak
+             class="absolute right-0 mt-1 w-36 rounded-lg bg-slate-950 border border-slate-800 py-1 shadow-2xl z-20">
+          <button @click="cardMenuOpen = false; openEditModal({
+                    id: '{{ product.id }}',
+                    sku: '{{ product.sku }}',
+                    name: '{{ product.name|replace("'", "\\'") }}',
+                    category: '{{ product.category|replace("'", "\\'") }}',
+                    price: {{ product.price }},
+                    stock: {{ product.stock }},
+                    weight_kg: {{ product.weight_kg }},
+                    description: '{{ (product.description or '')|replace("'", "\\'")|replace('\n', ' ') }}'
+                  })"
+                  type="button"
+                  class="flex items-center w-full px-3 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-slate-900 transition-colors text-left">
+            Edit Product
+          </button>
+          <button @click="cardMenuOpen = false; openDeleteModal({
+                    id: '{{ product.id }}',
+                    name: '{{ product.name|replace("'", "\\'") }}',
+                    sku: '{{ product.sku }}'
+                  })"
+                  type="button"
+                  class="flex items-center w-full px-3 py-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors text-left">
+            Delete Product
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-base font-semibold text-white tracking-tight leading-snug mb-2">
+      {{ product.name }}
+    </h3>
+
+    {% if product.description %}
+    <p class="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4">
+      {{ product.description }}
+    </p>
+    {% endif %}
+
+    <div class="flex items-center gap-2 text-xs text-slate-400 mb-4">
+      <span>Weight: <strong class="font-mono text-slate-300 font-normal">{{ product.weight_kg }} kg</strong></span>
+      <span aria-hidden="true">&middot;</span>
+      <span>Stock:
+        {% if product.stock > 10 %}
+          <strong class="font-mono text-emerald-400 font-semibold">{{ product.stock }} units</strong>
+        {% elif product.stock > 0 %}
+          <strong class="font-mono text-amber-400 font-semibold">{{ product.stock }} units left</strong>
+        {% else %}
+          <strong class="font-mono text-rose-400 font-semibold">Out of Stock</strong>
+        {% endif %}
+      </span>
+    </div>
+  </div>
+
+  <div class="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-3">
+    <div>
+      <span class="text-xs text-slate-500 block">Unit Price</span>
+      <span class="text-lg font-bold font-mono text-white tracking-tight">${{ "%.2f"|format(product.price) }}</span>
+    </div>
+
+    {% if product.stock > 0 %}
+    <button @click="openPurchaseModal({
+              id: '{{ product.id }}',
+              sku: '{{ product.sku }}',
+              name: '{{ product.name|replace("'", "\\'") }}',
+              price: {{ product.price }},
+              stock: {{ product.stock }}
+            })"
+            type="button"
+            class="px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-500 active:scale-95 transition-all whitespace-nowrap shadow-sm shadow-blue-500/20">
+      Buy Now
+    </button>
+    {% else %}
+    <button disabled
+            type="button"
+            class="px-3.5 py-2 text-xs font-medium text-slate-500 bg-slate-800/60 rounded-lg cursor-not-allowed whitespace-nowrap">
+      Sold Out
+    </button>
+    {% endif %}
+  </div>
+</div>

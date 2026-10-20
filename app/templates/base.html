@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}E-Commerce App{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.10/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in-out; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+    .htmx-request.htmx-indicator { opacity: 1; }
+  </style>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white"
+      x-data="{
+        mobileMenuOpen: false,
+        purchaseModalOpen: false,
+        csvModalOpen: false,
+        editModalOpen: false,
+        deleteModalOpen: false,
+        selectedProduct: null,
+        editProduct: null,
+        deleteProduct: null,
+        purchaseQty: 1,
+        openPurchaseModal(product) {
+          this.selectedProduct = product;
+          this.purchaseQty = 1;
+          this.purchaseModalOpen = true;
+        },
+        closePurchaseModal() {
+          this.purchaseModalOpen = false;
+        },
+        openEditModal(product) {
+          this.editProduct = { ...product };
+          this.editModalOpen = true;
+        },
+        closeEditModal() {
+          this.editModalOpen = false;
+        },
+        deleteProductSuccess: null,
+        openDeleteModal(product) {
+          this.deleteProduct = product;
+          this.deleteProductSuccess = null;
+          this.deleteModalOpen = true;
+        },
+        closeDeleteModal() {
+          this.deleteModalOpen = false;
+          this.deleteProductSuccess = null;
+        },
+        confirmDelete() {
+          if (!this.deleteProduct) return;
+          const target = this.deleteProduct;
+          fetch('/partials/products/' + target.id, { method: 'DELETE' }).catch(() => {});
+          const card = document.getElementById('product-card-' + target.id);
+          if (card) card.remove();
+          this.deleteProductSuccess = { ...target };
+        },
+        createModalOpen: false,
+        openCreateModal() {
+          const feedback = document.getElementById('create-product-feedback');
+          if (feedback) feedback.innerHTML = '';
+          const form = document.getElementById('create-product-form');
+          if (form) form.reset();
+          this.createModalOpen = true;
+        },
+        closeCreateModal() {
+          const feedback = document.getElementById('create-product-feedback');
+          if (feedback) feedback.innerHTML = '';
+          this.createModalOpen = false;
+        },
+        openCsvModal() {
+          this.csvModalOpen = true;
+        },
+        closeCsvModal() {
+          this.csvModalOpen = false;
+        }
+      }">
+
+  <header class="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 gap-8">
+        <a href="/" class="text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 hover:text-blue-400 transition-colors">
+          E-COMMERCE APP
+        </a>
+
+        <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-300">
+          <a href="/docs" target="_blank" class="hover:text-white transition-colors whitespace-nowrap shrink-0">
+            API Docs
+          </a>
+        </nav>
+
+        <div class="flex md:hidden">
+          <button @click="mobileMenuOpen = !mobileMenuOpen"
+                  type="button"
+                  class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 focus:outline-none"
+                  aria-label="Toggle navigation menu">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              <path x-show="mobileMenuOpen" x-cloak stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div x-show="mobileMenuOpen" x-cloak class="md:hidden border-b border-slate-800 bg-slate-900/95 px-4 pt-2 pb-4 space-y-2">
+      <a href="/docs" target="_blank" @click="mobileMenuOpen = false" class="block py-2 text-sm font-medium text-slate-200 hover:text-white">API Docs</a>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-slate-900 bg-slate-950 py-8 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p>E-Commerce App &middot; Enterprise Monolith &middot; PostgreSQL Async &middot; SQLAlchemy 2.0</p>
+      <p class="font-mono tabular-nums">Stock Row Locking Engine &middot; Active</p>
+    </div>
+  </footer>
+
+  {% include "partials/purchase_modal.html" %}
+  {% include "partials/csv_modal.html" %}
+  {% include "partials/product_create_modal.html" %}
+  {% include "partials/product_edit_modal.html" %}
+  {% include "partials/product_delete_modal.html" %}
+
+</body>
+</html>

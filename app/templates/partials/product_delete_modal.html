@@ -1,0 +1,80 @@
+<div x-show="deleteModalOpen"
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     aria-labelledby="delete-modal-title"
+     role="dialog"
+     aria-modal="true">
+
+  <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+       @click="closeDeleteModal()"></div>
+
+  <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+    <div class="relative transform overflow-hidden rounded-2xl border border-rose-900/50 bg-slate-900 p-6 text-left shadow-2xl transition-all w-full max-w-md mx-4"
+         @click.stop>
+
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+             :class="deleteProductSuccess ? 'bg-emerald-950/80 border border-emerald-800/60 text-emerald-400' : 'bg-rose-950/80 border border-rose-800/60 text-rose-400'">
+          <template x-if="deleteProductSuccess">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </template>
+          <template x-if="!deleteProductSuccess">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </template>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white" x-text="deleteProductSuccess ? 'Product Deleted Successfully' : 'Delete Product'"></h3>
+          <p class="text-xs text-slate-400" x-text="deleteProductSuccess ? 'Catalog Updated' : 'Confirmation Required'"></p>
+        </div>
+      </div>
+
+      <template x-if="deleteProductSuccess">
+        <div class="space-y-4">
+          <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-4 text-xs text-emerald-200">
+            <p class="font-semibold text-emerald-300">
+              Product "<span x-text="deleteProductSuccess.name"></span>" deleted successfully!
+            </p>
+            <p class="text-emerald-300/80 mt-1">
+              SKU <span class="font-mono font-bold text-white" x-text="deleteProductSuccess.sku"></span> has been permanently removed from inventory and stock tracking.
+            </p>
+          </div>
+
+          <div class="pt-2 flex items-center justify-end">
+            <button type="button"
+                    @click="closeDeleteModal(); window.location.reload();"
+                    class="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20">
+              Continue
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="!deleteProductSuccess">
+        <div>
+          <div class="mb-5 rounded-lg bg-slate-950 p-3.5 border border-slate-800 text-xs text-slate-300">
+            <p>Are you sure you want to permanently delete <strong class="text-white" x-text="deleteProduct ? deleteProduct.name : ''"></strong>?</p>
+            <p class="text-slate-500 font-mono mt-1" x-text="deleteProduct ? 'SKU: ' + deleteProduct.sku : ''"></p>
+            <p class="text-rose-400/90 mt-2">This action cannot be undone and removes all stock tracking immediately.</p>
+          </div>
+
+          <div class="flex items-center justify-end gap-3">
+            <button type="button"
+                    @click="closeDeleteModal()"
+                    class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button type="button"
+                    @click="confirmDelete()"
+                    class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 rounded-lg transition-colors shadow-sm shadow-rose-600/20">
+              Confirm Deletion
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>

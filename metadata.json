@@ -1,0 +1,8 @@
+{
+  "name": "Kinetic Hardware E-Commerce",
+  "description": "Enterprise-grade e-commerce application powered by FastAPI, PostgreSQL, SQLAlchemy 2.0, HTMX, Tailwind CSS, and Alpine.js with transactional row locking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
