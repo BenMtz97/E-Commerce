@@ -2,7 +2,7 @@
 
 Production-grade, resilient e-commerce application built with a Layered Monolith architecture using FastAPI, Async PostgreSQL with SQLAlchemy 2.0, Pydantic v2, Jinja2, HTMX, Tailwind CSS, and Alpine.js.
 
-> **CSV File Download Date: October 20, 2026**
+> **CSV File Download Date: October 16, 2026**
 
 ---
 

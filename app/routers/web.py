@@ -442,6 +442,6 @@ async def download_sample_csv() -> StreamingResponse:
     )
     stream = io.BytesIO(csv_content.encode("utf-8"))
     headers = {
-        "Content-Disposition": "attachment; filename=sample_products_20261020.csv"
+        "Content-Disposition": "attachment; filename=sample_products.csv"
     }
     return StreamingResponse(stream, media_type="text/csv", headers=headers)
