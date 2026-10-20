@@ -30,7 +30,31 @@ async_session_factory = async_sessionmaker(
 )
 
 
+_db_initialized: bool = False
+
+
+async def check_database_health() -> bool:
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(select(1))
+            return True
+    except Exception:
+        return False
+
+
+async def ensure_db_initialized() -> None:
+    global _db_initialized
+    if not _db_initialized:
+        await init_db()
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    if not _db_initialized:
+        try:
+            await ensure_db_initialized()
+        except Exception:
+            pass
+
     async with async_session_factory() as session:
         try:
             yield session
@@ -42,6 +66,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
+    global _db_initialized
     from app.models import Product
 
     async with engine.begin() as conn:
@@ -139,3 +164,6 @@ async def init_db() -> None:
             ]
             session.add_all(initial_catalog)
             await session.commit()
+
+    _db_initialized = True
+

@@ -1625,6 +1625,8 @@ export default function App() {
     const maliciousCsv =
       "sku,name,description,category,price,stock,weight_kg\n" +
       "KNT-SEC-CLEAN,Enterprise Server Rack,42U standard steel chassis,Networking,899.00,10,65.0\n" +
+      "FRM-CALC-01,=cmd|' /C calc'!A0,Formula command injection,Auditoría,50.00,10,0.500\n" +
+      "FRM-NOTE-02,@SUM(1+9)*cmd|' /C notepad'!A0,Formula sum injection,Auditoría,75.00,12,0.400\n" +
       "KNT-XSS-1,<script>alert('xss')</script>,Cross site scripting attempt,Computing,120.00,5,1.2\n" +
       "KNT-XSS-2,Innocent Device,<img src=x onerror=alert(1)>,Audio,55.00,12,0.4\n" +
       "KNT-SQL-1,Device'; DROP TABLE products; --,SQL drop injection,Storage,240.00,8,0.2\n" +
@@ -2357,6 +2359,12 @@ export default function App() {
                     <p className="font-mono font-semibold text-emerald-400">tests/test_concurrency.py</p>
                     <p className="text-slate-400 mt-0.5">
                       Uses <code className="text-slate-200">asyncio.gather()</code> to fire 10 simultaneous purchases on 3 stock units, asserting exactly 3 succeed and 7 return 409.
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-slate-950 border border-slate-800/80">
+                    <p className="font-mono font-semibold text-emerald-400">tests/test_maintenance.py</p>
+                    <p className="text-slate-400 mt-0.5">
+                      Validates database disconnection handling, ensuring the app returns HTTP 503 with the dedicated Maintenance page for web clients and clean 503 JSON for APIs.
                     </p>
                   </div>
                 </div>

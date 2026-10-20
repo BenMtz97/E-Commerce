@@ -49,6 +49,12 @@ Under heavy checkout loads, multiple users may attempt to purchase the remaining
 - **Alpine.js**: Handles lightweight client-side micro-interactions: mobile hamburger menu drawer, accessible purchase modals, and real-time total price calculation based on local stepper inputs.
 - **Tailwind CSS**: Delivers a mobile-first, responsive interface with a 4-column desktop grid, WCAG AA contrast, and zero layout shifting.
 
+### G. High Availability & Database Outage Handling (Maintenance Mode)
+- **Zero Server Crashes**: The FastAPI application lifespan and database dependencies gracefully intercept connection failures (`SQLAlchemyError`, `OperationalError`, `InterfaceError`, `ConnectionRefusedError`, Docker database stop/restart).
+- **HTTP 503 Maintenance Page**: Rather than exposing raw 500 server errors or generic JSON failures, the application renders a dedicated, responsive Maintenance Page (`maintenance.html`) with HTTP status `503 Service Unavailable`.
+- **Automated Health Recovery**: The maintenance page includes real-time background health polling (`/api/health`) with auto-reconnection countdown, automatically reloading the catalog as soon as the database container is restarted.
+- **API Graceful Degradation**: Direct REST API consumers receive a clean, predictable HTTP 503 JSON payload (`status: 503, detail: "Database service is temporarily unavailable..."`) adhering to strict status code standards.
+
 ---
 
 ## 2. Quickstart with Docker Compose
@@ -116,6 +122,9 @@ pytest tests/test_csv_import.py -v
 
 # Test concurrent checkout race-condition prevention with asyncio.gather()
 pytest tests/test_concurrency.py -v
+
+# Test database outage interception and HTTP 503 maintenance page
+pytest tests/test_maintenance.py -v
 ```
 
 ---

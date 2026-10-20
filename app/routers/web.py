@@ -3,11 +3,11 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile, status
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import check_database_health, get_db
 from app.schemas import ProductCreate, ProductUpdate
 from app.services import (
     CsvImportService,
@@ -445,3 +445,45 @@ async def download_sample_csv() -> StreamingResponse:
         "Content-Disposition": "attachment; filename=sample_products.csv"
     }
     return StreamingResponse(stream, media_type="text/csv", headers=headers)
+
+
+@router.get("/maintenance", response_class=HTMLResponse)
+async def maintenance_view(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "maintenance.html",
+        {
+            "status_code": status.HTTP_503_SERVICE_UNAVAILABLE,
+            "detail": "Database service is temporarily offline or undergoing maintenance.",
+        },
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+
+
+@router.get("/health")
+async def health_view() -> JSONResponse:
+    is_connected = await check_database_health()
+    if is_connected:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "healthy", "database": "connected"},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "maintenance", "database": "disconnected"},
+    )
+
+
+@router.get("/api/health")
+async def api_health_view() -> JSONResponse:
+    is_connected = await check_database_health()
+    if is_connected:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "healthy", "database": "connected"},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "maintenance", "database": "disconnected"},
+    )
+
