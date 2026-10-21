@@ -44,13 +44,14 @@
             hx-post="/partials/purchase"
             hx-target="#purchase-feedback-container"
             hx-swap="innerHTML"
-            @submit="purchaseButtonDisabled = true"
+            @htmx:before-request="purchaseButtonDisabled = true"
             @transaction-confirmed.window="purchaseConfirmed = true; purchaseButtonDisabled = true"
             @transaction-processed.window="purchaseButtonDisabled = true"
             @htmx:after-request="purchaseButtonDisabled = true"
             class="space-y-4">
 
         <input type="hidden" name="product_id" :value="selectedProduct ? selectedProduct.id : ''">
+        <input type="hidden" name="card_option" :value="purchaseCardOption">
 
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1.5">
@@ -87,8 +88,7 @@
           <label class="block text-xs font-medium text-slate-300 mb-1.5">
             Cardbank Payment Selector (Select Card)
           </label>
-          <select name="card_option"
-                  x-model="purchaseCardOption"
+          <select x-model="purchaseCardOption"
                   required
                   :disabled="purchaseButtonDisabled"
                   class="w-full px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50">

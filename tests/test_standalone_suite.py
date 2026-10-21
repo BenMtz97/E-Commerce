@@ -62,6 +62,7 @@ class TestTemplateAndApplicationContracts(unittest.TestCase):
 
         with open("app/templates/partials/purchase_modal.html", "r", encoding="utf-8") as handle:
             modal_html = handle.read()
+        self.assertIn('<input type="hidden" name="card_option" :value="purchaseCardOption">', modal_html)
         self.assertIn('<option value="" disabled>-- Select a Bank Card --</option>', modal_html)
         self.assertIn('<option value="XXX-1234 SUCCEED">XXX-1234 SUCCEED</option>', modal_html)
         self.assertIn('<option value="XXX-1111 REJECTED">XXX-1111 REJECTED</option>', modal_html)
