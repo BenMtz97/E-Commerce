@@ -107,10 +107,10 @@ async def test_csv_import_missing_required_headers(client: AsyncClient) -> None:
 async def test_csv_import_rejects_formula_injection(client: AsyncClient) -> None:
     formula_injection_csv = (
         "name,sku,description,category,price,stock,weight_kg,is_active\n"
-        "=cmd|' /C calc'!A0,FRM-CALC-01,Inyeccion ejecucion comando calc,Auditoría,50.00,10,0.500,true\n"
-        "@SUM(1+9)*cmd|' /C notepad'!A0,FRM-NOTE-02,Inyeccion notepad con arroba,Auditoría,75.00,12,0.400,true\n"
-        "+10+20+cmd|' /C calc'!A0,FRM-PLUS-03,Inyeccion operacion aritmetica mas,Auditoría,20.00,15,0.200,true\n"
-        "-2+3+cmd|' /C calc'!A0,FRM-MINUS-04,Inyeccion operacion aritmetica menos,Auditoría,10.00,8,0.150,true\n"
+        "=cmd|' /C calc'!A0,FRM-CALC-01,Command execution calc injection,SecurityAudit,50.00,10,0.500,true\n"
+        "@SUM(1+9)*cmd|' /C notepad'!A0,FRM-NOTE-02,Notepad injection with at-sign,SecurityAudit,75.00,12,0.400,true\n"
+        "+10+20+cmd|' /C calc'!A0,FRM-PLUS-03,Arithmetic plus formula injection,SecurityAudit,20.00,15,0.200,true\n"
+        "-2+3+cmd|' /C calc'!A0,FRM-MINUS-04,Arithmetic minus formula injection,SecurityAudit,10.00,8,0.150,true\n"
     )
     files = {
         "file": (

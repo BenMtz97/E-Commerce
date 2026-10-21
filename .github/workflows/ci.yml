@@ -1,4 +1,4 @@
-name: Enterprise CI & Automated Validation Suite
+name: Enterprise E-Commerce CI Pipeline (Build to Order Creation)
 
 on:
   push:
@@ -10,9 +10,46 @@ on:
 permissions:
   contents: read
 
+env:
+  DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+  SECRET_KEY: "ci-test-secret-key-pbkdf2-hmac-sha256"
+  PYTHONPATH: "."
+
 jobs:
-  backend-pytest-suite:
-    name: Python FastAPI & SQLAlchemy Async Suite
+  stage-1-build-and-compile:
+    name: "1. Build, TypeScript Lint & Python Syntax"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Frontend Dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run TypeScript Compiler Check
+        run: npm run lint
+
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Verify Python AST & Zero-Comments Policy
+        run: |
+          python3 -m py_compile main.py app/*.py app/routers/*.py tests/*.py
+          python3 -m unittest discover -s tests -p "test_standalone*.py" -v
+
+  stage-2-auth-and-rbac:
+    name: "2. Authentication, Session Reload & Admin RBAC"
+    needs: stage-1-build-and-compile
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -23,33 +60,88 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: "requirements.txt"
 
-      - name: Verify Python Syntax & Zero-Comment Architecture Policy
-        run: |
-          python3 -m py_compile app/*.py app/routers/*.py tests/*.py
-          python3 -m unittest discover -s tests -p "test_standalone*.py" -v
-
-      - name: Install Python Dependencies
+      - name: Install Backend Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Pytest Suite (CRUD, CSV Security, RBAC, Cardbank & Orders, Concurrency, 503 Maintenance)
-        env:
-          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
-          SECRET_KEY: "ci-test-secret-key-pbkdf2-hmac-sha256"
-        run: |
-          pytest \
-            tests/test_crud.py \
-            tests/test_csv_import.py \
-            tests/test_auth.py \
-            tests/test_orders_and_cards.py \
-            tests/test_concurrency.py \
-            tests/test_maintenance.py \
-            -v --tb=short
+      - name: Run Authentication, PBKDF2 Hashing & Admin Creation Tests
+        run: pytest tests/test_auth.py -v --tb=short
 
-  frontend-and-behavior-suite:
-    name: TypeScript, Domain Validation & Build Verification
+  stage-3-catalog-and-multifilter:
+    name: "3. Product CRUD & Multi-Column Filtering"
+    needs: stage-2-auth-and-rbac
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Product Catalog CRUD & Validation Tests
+        run: pytest tests/test_crud.py -v --tb=short
+
+  stage-4-csv-security-and-admin-env:
+    name: "4. CSV Bulk Import, Formula/XSS/SQLi Defense & Admin-Only CSV"
+    needs: stage-3-catalog-and-multifilter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run CSV Bulk Import & Injection Defense Tests
+        run: pytest tests/test_csv_import.py -v --tb=short
+
+  stage-5-concurrency-and-resilience:
+    name: "5. Row-Level Stock Locking & 503 Maintenance Resilience"
+    needs: stage-4-csv-security-and-admin-env
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
+
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Concurrency Locking & 503 Maintenance Tests
+        run: pytest tests/test_concurrency.py tests/test_maintenance.py -v --tb=short
+
+  stage-6-cardbank-and-order-creation:
+    name: "6. Cardbank Selector & User Order Creation E2E"
+    needs: stage-5-concurrency-and-resilience
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -59,16 +151,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
 
-      - name: Install Node Dependencies
-        run: npm ci
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: "requirements.txt"
 
-      - name: Run TypeScript Compiler Check
-        run: npm run lint
+      - name: Install Backend Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run Automated Behavior & Security Tests
-        run: npm test
+      - name: Run Cardbank Selector (Succeed vs Rejected) & Order Creation Pytest Suite
+        run: pytest tests/test_orders_and_cards.py -v --tb=short
 
-      - name: Build Production Bundle
-        run: npm run build
+      - name: Run End-to-End Behavioral & Order Creation Node Suite
+        run: node --test tests/app_behavior.test.mjs

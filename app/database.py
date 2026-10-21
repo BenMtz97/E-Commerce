@@ -1,6 +1,6 @@
 import uuid
 from decimal import Decimal
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -33,8 +33,11 @@ async_session_factory = async_sessionmaker(
 _db_initialized: bool = False
 
 
-async def check_database_health() -> bool:
+async def check_database_health(db: Optional[AsyncSession] = None) -> bool:
     try:
+        if db is not None:
+            await db.execute(select(1))
+            return True
         async with engine.connect() as conn:
             await conn.execute(select(1))
             return True

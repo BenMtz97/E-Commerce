@@ -1,18 +1,22 @@
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Product
+from app.services import UserService
 
 
 @pytest.mark.asyncio
 async def test_purchase_requires_card_selection(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     login_resp = await client.post(
         "/api/auth/login",
         json={"email": "user@user.com", "password": "user"},
     )
     assert login_resp.status_code == 200
-    token = login_resp.json()["access_token"]
+    token = login_resp.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     initial_stock = sample_product.stock
@@ -31,13 +35,16 @@ async def test_purchase_requires_card_selection(
 
 @pytest.mark.asyncio
 async def test_card_rejected_preserves_stock_and_creates_no_order(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     login_resp = await client.post(
         "/api/auth/login",
         json={"email": "user@user.com", "password": "user"},
     )
-    token = login_resp.json()["access_token"]
+    assert login_resp.status_code == 200
+    token = login_resp.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     initial_stock = sample_product.stock
@@ -60,13 +67,16 @@ async def test_card_rejected_preserves_stock_and_creates_no_order(
 
 @pytest.mark.asyncio
 async def test_card_succeed_decrements_stock_and_creates_user_order(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     login_resp = await client.post(
         "/api/auth/login",
         json={"email": "user@user.com", "password": "user"},
     )
-    token = login_resp.json()["access_token"]
+    assert login_resp.status_code == 200
+    token = login_resp.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     initial_stock = sample_product.stock
@@ -87,7 +97,7 @@ async def test_card_succeed_decrements_stock_and_creates_user_order(
     assert orders_resp.status_code == 200
     orders = orders_resp.json()
     assert len(orders) == 1
-    assert orders[0]["id"] == payload["order_id"]
+    assert str(orders[0]["id"]) == str(payload["order_id"])
     assert orders[0]["sku"] == sample_product.sku
     assert orders[0]["quantity"] == 4
     assert orders[0]["card_option"] == "XXX-1234 SUCCEED"
@@ -96,8 +106,10 @@ async def test_card_succeed_decrements_stock_and_creates_user_order(
 
 @pytest.mark.asyncio
 async def test_web_purchase_partial_and_orders_view(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     login_form = await client.post(
         "/login",
         data={"email": "user@user.com", "password": "user"},
@@ -148,8 +160,10 @@ async def test_web_purchase_partial_and_orders_view(
 
 @pytest.mark.asyncio
 async def test_sample_csv_only_in_admin_and_multicolumn_filters(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     anon_home = await client.get("/")
     assert anon_home.status_code == 200
     assert "Sample CSV" not in anon_home.text

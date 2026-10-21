@@ -596,6 +596,30 @@ class UserService:
         )
         return list(result.scalars().all())
 
+    @staticmethod
+    async def ensure_default_users(db: AsyncSession) -> None:
+        existing_admin = await UserService.get_by_email(db, "admin@admin.com")
+        if not existing_admin:
+            db.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="admin@admin.com",
+                    hashed_password=hash_password("admin"),
+                    role="admin",
+                )
+            )
+        existing_user = await UserService.get_by_email(db, "user@user.com")
+        if not existing_user:
+            db.add(
+                User(
+                    id=uuid.uuid4(),
+                    email="user@user.com",
+                    hashed_password=hash_password("user"),
+                    role="user",
+                )
+            )
+        await db.commit()
+
 
 class OrderService:
     @staticmethod

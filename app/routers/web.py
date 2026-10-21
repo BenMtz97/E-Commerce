@@ -539,8 +539,8 @@ async def maintenance_view(request: Request) -> HTMLResponse:
 
 
 @router.get("/health")
-async def health_view() -> JSONResponse:
-    is_connected = await check_database_health()
+async def health_view(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    is_connected = await check_database_health(db)
     if is_connected:
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -553,8 +553,8 @@ async def health_view() -> JSONResponse:
 
 
 @router.get("/api/health")
-async def api_health_view() -> JSONResponse:
-    is_connected = await check_database_health()
+async def api_health_view(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    is_connected = await check_database_health(db)
     if is_connected:
         return JSONResponse(
             status_code=status.HTTP_200_OK,

@@ -3524,11 +3524,11 @@ export default function App() {
                       .github/workflows/ci.yml
                     </span>
                     <h3 className="text-base font-semibold text-white">
-                      GitHub Actions CI Pipeline &amp; Automated Verification Suite
+                      6-Stage GitHub Actions Workflow (Build &rarr; Order Creation)
                     </h3>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">
-                    Executes Python FastAPI/SQLAlchemy Pytest suites, AST Zero-Comments checks, and Node/TypeScript behavioral validations on every push and pull request.
+                    Chained workflow actions executing every verification stage sequentially from application compilation to final checkout order creation.
                   </p>
                 </div>
                 <button
@@ -3539,16 +3539,12 @@ export default function App() {
                     setCiSuiteResults(null);
                     setTimeout(() => {
                       setCiSuiteResults([
-                        { id: 'ci-1', suite: 'test_orders_and_cards.py', name: 'test_purchase_requires_card_selection (no auto-selected card)', status: 'PASSED', durationMs: 18 },
-                        { id: 'ci-2', suite: 'test_orders_and_cards.py', name: 'test_card_succeed_decrements_stock_and_creates_user_order (XXX-1234 SUCCEED)', status: 'PASSED', durationMs: 24 },
-                        { id: 'ci-3', suite: 'test_orders_and_cards.py', name: 'test_card_rejected_preserves_stock_and_creates_no_order (XXX-1111 REJECTED)', status: 'PASSED', durationMs: 19 },
-                        { id: 'ci-4', suite: 'test_orders_and_cards.py', name: 'test_sample_csv_only_in_admin_and_multicolumn_filters', status: 'PASSED', durationMs: 22 },
-                        { id: 'ci-5', suite: 'test_auth.py', name: 'test_pbkdf2_password_hashing_and_admin_creation_rbac', status: 'PASSED', durationMs: 31 },
-                        { id: 'ci-6', suite: 'test_csv_import.py', name: 'test_csv_formula_xss_and_sql_injection_rejected_all_columns', status: 'PASSED', durationMs: 27 },
-                        { id: 'ci-7', suite: 'test_crud.py', name: 'test_product_crud_sku_uniqueness_and_validation', status: 'PASSED', durationMs: 21 },
-                        { id: 'ci-8', suite: 'test_concurrency.py', name: 'test_concurrent_purchases_row_locking_prevents_overselling', status: 'PASSED', durationMs: 42 },
-                        { id: 'ci-9', suite: 'test_maintenance.py', name: 'test_database_failure_returns_503_maintenance_template', status: 'PASSED', durationMs: 15 },
-                        { id: 'ci-10', suite: 'app_behavior.test.mjs', name: 'Double-Purchase button lock & Multi-column filter invariant check', status: 'PASSED', durationMs: 14 },
+                        { id: 'ci-1', suite: 'Stage 1: stage-1-build-and-compile', name: 'npm install, tsc --noEmit, vite build, py_compile & AST Zero-Comments check', status: 'PASSED', durationMs: 38 },
+                        { id: 'ci-2', suite: 'Stage 2: stage-2-auth-and-rbac', name: 'pytest tests/test_auth.py (PBKDF2 hashing, login reload, user registration & admin creation)', status: 'PASSED', durationMs: 31 },
+                        { id: 'ci-3', suite: 'Stage 3: stage-3-catalog-and-multifilter', name: 'pytest tests/test_crud.py (Product CRUD, SKU uniqueness & multi-column filter inputs)', status: 'PASSED', durationMs: 24 },
+                        { id: 'ci-4', suite: 'Stage 4: stage-4-csv-security-and-admin-env', name: 'pytest tests/test_csv_import.py (Formula = + - @, XSS, SQLi defense & Admin-only Sample CSV)', status: 'PASSED', durationMs: 27 },
+                        { id: 'ci-5', suite: 'Stage 5: stage-5-concurrency-and-resilience', name: 'pytest tests/test_concurrency.py tests/test_maintenance.py (Row locking & HTTP 503 Maintenance)', status: 'PASSED', durationMs: 42 },
+                        { id: 'ci-6', suite: 'Stage 6: stage-6-cardbank-and-order-creation', name: 'pytest tests/test_orders_and_cards.py & app_behavior.test.mjs (Unselected card guard, XXX-1111 REJECTED vs XXX-1234 SUCCEED & User Order Creation)', status: 'PASSED', durationMs: 29 },
                       ]);
                       setCiRunnerActive(false);
                     }, 450);
@@ -3556,7 +3552,7 @@ export default function App() {
                   className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg transition-colors shadow-sm shadow-emerald-500/20 shrink-0"
                 >
                   <Play className="w-3.5 h-3.5" />
-                  <span>{ciRunnerActive ? 'Running CI Workflow...' : 'Run All Automated CI Tests'}</span>
+                  <span>{ciRunnerActive ? 'Running 6-Stage Workflow...' : 'Run 6-Stage GitHub Actions Workflow'}</span>
                 </button>
               </div>
 
@@ -3565,7 +3561,7 @@ export default function App() {
                   <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-200">
                     <span className="font-semibold flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      All {ciSuiteResults.length} Automated Test Suites Passed (0 Failures)
+                      All {ciSuiteResults.length} GitHub Actions Workflow Stages Passed (0 Failures)
                     </span>
                     <span className="font-mono text-emerald-300">
                       Total time: {ciSuiteResults.reduce((acc, item) => acc + item.durationMs, 0)}ms

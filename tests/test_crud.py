@@ -1,7 +1,9 @@
 import uuid
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Product
+from app.services import UserService
 
 
 @pytest.mark.asyncio
@@ -180,14 +182,16 @@ async def test_delete_product_success(
 
 @pytest.mark.asyncio
 async def test_purchase_card_succeed_and_rejected_options(
-    client: AsyncClient, sample_product: Product
+    client: AsyncClient, db_session: AsyncSession, sample_product: Product
 ) -> None:
+    await UserService.ensure_default_users(db_session)
+
     login_resp = await client.post(
         "/api/auth/login",
         json={"email": "user@user.com", "password": "user"},
     )
     assert login_resp.status_code == 200
-    token = login_resp.json()["access_token"]
+    token = login_resp.json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     initial_stock = sample_product.stock
