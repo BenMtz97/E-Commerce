@@ -1,6 +1,6 @@
 # E-Commerce App &middot; Enterprise Platform
 
-Production-grade, resilient e-commerce application built with a Layered Monolith architecture using FastAPI, Async PostgreSQL with SQLAlchemy 2.0, Pydantic v2, Jinja2, HTMX, Tailwind CSS, and Alpine.js.
+Production-grade, resilient e-commerce application built with a Pragmatic Layered Monolith architecture using FastAPI, Async PostgreSQL with SQLAlchemy 2.0, Pydantic v2, Jinja2, HTMX, Tailwind CSS, Alpine.js, and React/TypeScript.
 
 > **CSV File Download Date: October 16, 2026**
 
@@ -9,57 +9,84 @@ Production-grade, resilient e-commerce application built with a Layered Monolith
 ## 1. Architectural Decisions & Design Rationale
 
 ### A. Pragmatic Layered Monolith Pattern
-The application follows a clean separation of concerns:
-- **`app/database.py`**: SQLAlchemy 2.0 async engine and session factory with automatic pool recovery (`pool_pre_ping=True`) and database initialization.
-- **`app/models.py`**: Strict ORM domain models with declarative mapping, table-level check constraints (preventing negative price, stock, or weight), and indexed lookups.
-- **`app/schemas.py`**: Pydantic v2 validation contracts for API requests, responses, CSV row normalization, and security filters.
-- **`app/services.py`**: Pure domain logic encapsulation. Database transactions are controlled at the service boundary, completely decoupled from HTTP transport.
+The application follows a strict separation of concerns across layers:
+- **`app/database.py`**: SQLAlchemy 2.0 async engine and session factory with automatic pool recovery (`pool_pre_ping=True`), health verification (`check_database_health`), and automatic schema/user seeding (`init_db`).
+- **`app/models.py`**: Declarative ORM domain models (`Product`, `User`, `Order`) with table-level check constraints (preventing negative price, stock, or weight, and enforcing positive order quantities) and indexed lookups.
+- **`app/schemas.py`**: Pydantic v2 validation contracts for API requests, responses, authentication payloads, order schemas, CSV row normalization, and multi-layer security filters.
+- **`app/security.py`**: Cryptographic password hashing (**PBKDF2-HMAC-SHA256** with 100,000 iterations and 16-byte random salts), HMAC-SHA256 signed session tokens, and FastAPI role dependencies (`get_current_user_optional`, `require_authenticated_user`, `require_admin_user`).
+- **`app/services.py`**: Pure domain logic encapsulation (`ProductService`, `PurchaseService`, `CsvImportService`, `UserService`, `OrderService`). Database transactions and locks are controlled at the service boundary, decoupled from HTTP transport.
 - **`app/routers/`**:
-  - `api.py`: Versioned REST API with predictable HTTP status codes (200, 201, 204, 400, 404, 409, 422) and no unhandled 500 exceptions.
-  - `web.py`: Server-rendered Jinja2 views powering reactive HTMX swaps.
-
-### B. Security & Injection Defense
-- **Formula & CSV Injection Prevention**:
-  - Rejects any cell starting with active spreadsheet formula triggers (`=`, `+`, `-`, `@`, `|`, `%`, `\t`, `\r`) or containing Dynamic Data Exchange (DDE) execution syntax (`cmd|`, `powershell|`, `calc|`, `notepad|`, `|' /C ...'!A0`, macro function invocations).
-  - Every individual cell across all columns in bulk CSV uploads is scanned and sanitized before database processing, eliminating CSV injection (CWE-1236) vulnerabilities.
-- **Script Injection (XSS) Prevention**:
-  - All text inputs across SKU, model name, category, and description are scanned against disallowed HTML elements (`<script>`, `<iframe>`, `<object>`, `<embed>`, `<svg>`, `<applet>`), `javascript:` URI schemes, and inline event triggers (`onerror=`, `onload=`, `onclick=`).
-  - Attempts are rejected at the Pydantic schema validation boundary and within the CSV bulk import processor.
-- **SQL Injection Defense-in-Depth**:
-  - While all database access uses SQLAlchemy parameterized prepared statements, domain-level validation aggressively detects and rejects classic SQL injection patterns (comment delimiters `--`, `/* */`, statement chains `; DROP`, `; DELETE`, tautologies `' OR 1=1`, and `UNION SELECT` expressions).
-  - SKU field is restricted to a strict whitelist: `^[A-Za-z0-9_.-]+$`.
-
-### C. Responsive Two-Tier Search & Filter Layout
-- To prevent the search input from getting squished or obscured when the category taxonomy grows large, the search bar and category selector use a decoupled two-tier architecture:
-  - **Tier 1 (Full-Width Search Bar)**: Spans the complete container width (`w-full`) with comfortable `py-3` padding and large typography, ensuring users can always see what they are typing without horizontal compression.
-  - **Tier 2 (Category Filter Row)**: Sits directly beneath the search bar with smooth horizontal scrolling (`overflow-x-auto scrollbar-thin`), category counts, and a one-click reset action, accommodating dozens of categories without impacting search input visibility.
-
-### D. Concurrency Control: Pessimistic Row Locking (`SELECT ... FOR UPDATE`)
-Under heavy checkout loads, multiple users may attempt to purchase the remaining inventory of a product simultaneously. An uncoordinated read-modify-write cycle leads to the classic lost update race condition and inventory overselling.
-- **Chosen Approach**: `PurchaseService.purchase_product` acquires an exclusive pessimistic row lock via `.with_for_update()` inside an atomic async database transaction.
-- **Behavior**: Competing purchase transactions block at the database engine until the active transaction commits or rolls back. If remaining stock is lower than the requested quantity, the transaction aborts and cleanly returns an HTTP 409 Conflict.
-- **Trade-Off**: Pessimistic row locking introduces minimal serialization latency on a per-product level, but guarantees 100% inventory integrity without the client retry storms common to optimistic concurrency control.
-
-### E. Search Engine: Hybrid Full-Text and Flexible Indexing
-- **Chosen Approach**: Native PostgreSQL full-text search with `to_tsvector` and `plainto_tsquery` over `name` and `description` supported by a GIN index, combined with case-insensitive `ILIKE` pattern matching across SKU, name, and category.
-- **Trade-Off**: Avoids the operational overhead, synchronization lag, and hosting expense of external search clusters (Elasticsearch/Meilisearch) while delivering sub-millisecond query execution directly inside the relational store.
-
-### F. UI Architecture: HTMX + Alpine.js + Tailwind CSS
-- **HTMX**: Powers live search input debouncing (200ms) and out-of-band DOM swaps (`hx-swap-oob`) for instantaneous inventory counter updates without full page reloads.
-- **Alpine.js**: Handles lightweight client-side micro-interactions: mobile hamburger menu drawer, accessible purchase modals, and real-time total price calculation based on local stepper inputs.
-- **Tailwind CSS**: Delivers a mobile-first, responsive interface with a 4-column desktop grid, WCAG AA contrast, and zero layout shifting.
-
-### G. High Availability & Database Outage Handling (Maintenance Mode)
-- **Zero Server Crashes**: The FastAPI application lifespan and database dependencies gracefully intercept connection failures (`SQLAlchemyError`, `OperationalError`, `InterfaceError`, `ConnectionRefusedError`, Docker database stop/restart).
-- **HTTP 503 Maintenance Page**: Rather than exposing raw 500 server errors or generic JSON failures, the application renders a dedicated, responsive Maintenance Page (`maintenance.html`) with HTTP status `503 Service Unavailable`.
-- **Automated Health Recovery**: The maintenance page includes real-time background health polling (`/api/health`) with auto-reconnection countdown, automatically reloading the catalog as soon as the database container is restarted.
-- **API Graceful Degradation**: Direct REST API consumers receive a clean, predictable HTTP 503 JSON payload (`status: 503, detail: "Database service is temporarily unavailable..."`) adhering to strict status code standards.
+  - `api.py`: REST API returning predictable HTTP status codes (`200`, `201`, `204`, `400`, `401`, `403`, `404`, `409`, `422`, `503`) with zero unhandled `500` server errors.
+  - `web.py`: Server-rendered Jinja2 views (`index.html`, `admin.html`, `orders.html`, `maintenance.html`) and reactive HTMX partials.
 
 ---
 
-## 2. Quickstart with Docker Compose
+## 2. Role-Based Access Control (RBAC), Credentials & Authentication
 
-Run the entire stack (FastAPI server and PostgreSQL database) with a single command:
+### A. Default Seeded Accounts
+On startup, the application automatically seeds two default accounts with **PBKDF2-HMAC-SHA256** encrypted passwords:
+
+| Role | Email | Password | Environment & Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@admin.com` | `admin` | Full Inventory Management, Products List Multi-Filter, Bulk CSV Upload, Sample CSV Download, Create Admin Users |
+| **User** | `user@user.com` | `user` | Storefront Catalog Browsing, Product Details, Cardbank Checkout Modal, Personal Order History (**My Orders**) |
+
+### B. Role Separation & Session Behavior
+1. **Admin Role (`admin`)**:
+   - **Product CRUD**: Create, Edit, and Delete products in the catalog.
+   - **Products List View (`/admin` & `Products List` tab)**: Displays products in a structured management table rather than storefront cards, featuring **Multi-Column Filtering** inputs at the top of every column (`SKU`, `Product Name`, `Category`, `Price`, `Stock`, `Weight`) and a **Clear Filters** action.
+   - **Bulk CSV Import & Sample CSV**: Upload CSV batches and download the **Sample CSV** template (`/sample-csv`). The **Sample CSV** button appears strictly in the `admin` environment and is hidden from normal users and unauthenticated visitors.
+   - **Create Admin User**: Dedicated **Create Admin User** modal (`/admin/create-admin` and `POST /api/auth/create-admin`) allowing existing administrators to provision additional `admin` accounts.
+   - **No Purchase Button**: Administrators manage inventory and do not see customer purchase buttons.
+2. **Normal User Role (`user`)**:
+   - **Browse, Filter & View Products**: Search by keyword, filter by category, and inspect full product specifications.
+   - **Purchase Products**: See the **Buy Now** button on in-stock products (`stock > 0`) and complete checkout via the Cardbank Purchase Modal.
+   - **View Personal Orders (`/orders` & `My Orders` tab)**: Inspect all orders associated with their user account (`Order ID`, `SKU`, `Product Name`, `Quantity`, `Total Charged`, `Card Used`, `Status`, and `Timestamp`).
+3. **Unauthenticated Visitors (No Active Session)**:
+   - Can browse, search, filter products, and open the product details modal.
+   - **Purchase buttons** and **Sample CSV buttons** are completely hidden when no session is active.
+   - **Login** and **Register** buttons are displayed in the navigation bar.
+   - Public registration (`/register` and `POST /api/auth/register`) creates **normal user accounts only** (`role = "user"`).
+   - Logging in or registering immediately updates/reloads the active session and redirects to the appropriate workspace (`X-Redirect-Url` / `HX-Redirect`).
+
+---
+
+## 3. Cardbank Checkout Selector, Double-Purchase Safeguard & User Orders
+
+Inside the Purchase Modal, checkout transactions are tested using the **Cardbank Payment Selector**:
+- **Explicit User Selection Required**: The card selector starts unselected (`-- Select a Bank Card --`) and never auto-selects the succeed card. The submit button remains disabled (`Select a Card`) until the user explicitly chooses a card option, and backend routes reject empty card submissions with `HTTP 400`.
+- **`XXX-1234 SUCCEED`**:
+  - Authorizes the payment and acquires an exclusive row lock (`SELECT ... FOR UPDATE`).
+  - Decrements the product stock by the purchased quantity.
+  - Creates a persistent `Order` record associated with the authenticated user (`user_id` and `user_email`).
+  - Displays a **Purchase Succeeded** confirmation message with the generated Order ID and a direct link to **View My Orders**.
+- **`XXX-1111 REJECTED`**:
+  - Simulates an issuing bank decline (`PaymentRejectedException`).
+  - Leaves product stock completely untouched and creates no order.
+  - Displays a **Purchase Rejected** error message explaining that the card was declined and stock was not modified.
+- **Double-Purchase Prevention**:
+  - Upon clicking **Confirm Purchase**, the submit button is immediately deactivated (`Purchase Deactivated`) so a user cannot accidentally trigger a double purchase.
+
+---
+
+## 4. Security & Injection Defense
+
+- **Formula & CSV Injection Prevention**:
+  - Rejects any cell starting with spreadsheet formula triggers (`=`, `+`, `-`, `@`, `\t`, `\r`) or Dynamic Data Exchange (DDE) payloads across **all** columns (`sku`, `name`, `description`, `category`, `price`, `stock`, `weight_kg`).
+- **Script Injection (XSS) Prevention**:
+  - Rejects disallowed HTML/script tags (`<script>`, `<iframe>`, `<object>`, `<embed>`, `<svg>`), `javascript:` protocols, and inline event handlers (`onerror=`, `onload=`).
+- **SQL Injection Defense-in-Depth**:
+  - Combines SQLAlchemy parameterized queries with domain-level regex validation rejecting `--`, `/* */`, `; DROP`, `UNION SELECT`, and `' OR '1'='1'`.
+- **Concurrency Control (`SELECT ... FOR UPDATE`)**:
+  - `PurchaseService.purchase_product` uses pessimistic row-level locking alongside per-product async locks so concurrent checkouts on scarce stock never oversell.
+- **High Availability & HTTP 503 Maintenance Mode**:
+  - Database connection errors (`OperationalError`, `InterfaceError`, `ConnectionRefusedError`) are intercepted globally, returning a responsive `503 Service Unavailable` Maintenance Page (`maintenance.html`) with live `/api/health` auto-recovery polling.
+
+---
+
+## 5. Quickstart with Docker Compose
+
+The multi-stage `Dockerfile` includes both the **Frontend Builder stage** (`node:22-slim` running `npm install --legacy-peer-deps` and `npm run build`) and the **Python Runtime stage** (`python:3.11-slim` running FastAPI/Uvicorn on port `8000` with Async PostgreSQL 16):
 
 ```bash
 docker compose up --build
@@ -67,73 +94,51 @@ docker compose up --build
 
 Once running:
 - **Web Storefront**: [http://localhost:8000](http://localhost:8000)
+- **Admin Products List (requires Admin login)**: [http://localhost:8000/admin](http://localhost:8000/admin)
+- **User Orders History (requires User login)**: [http://localhost:8000/orders](http://localhost:8000/orders)
 - **Interactive Swagger API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Alternative ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- **Sample CSV Download**: [http://localhost:8000/sample-csv](http://localhost:8000/sample-csv)
+- **Health Check Endpoint**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
 ---
 
-## 3. Local Development Setup
+## 6. Local Development Setup
 
-### Prerequisites
-- Python 3.10+
-- PostgreSQL 16 (or SQLite with aiosqlite for standalone testing)
-
-### Step 1: Clone and Create Virtual Environment
+### Backend (Python FastAPI + Async SQLAlchemy)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### Step 2: Configure Environment Variables
-Create a `.env` file in the project root:
-```env
-APP_NAME="E-Commerce App"
-DEBUG=true
-HOST=0.0.0.0
-PORT=8000
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/ecommerce
-```
-
-### Step 3: Run the Development Server
-```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
----
-
-## 4. Running Automated Tests
-
-The test suite validates CRUD operations, CSV batch ingestion, injection security filters, and concurrency safety:
+### Frontend (React 19 + TypeScript + Vite + Tailwind CSS)
+> Note: `.npmrc` is preconfigured with `legacy-peer-deps=true` and `package.json` supports `esbuild` `^0.25.0 || ^0.27.0 || ^0.28.0` to prevent `ERESOLVE` peer conflicts with Vite 8.
 
 ```bash
-pytest
-```
-
-To run individual test modules with detailed verbosity:
-
-```bash
-# Test Product CRUD operations, input constraints, and injection rejections
-pytest tests/test_crud.py -v
-
-# Test CSV batch parsing, malformed rows, and formula/XSS/SQL injection defenses
-pytest tests/test_csv_import.py -v
-
-# Test concurrent checkout race-condition prevention with asyncio.gather()
-pytest tests/test_concurrency.py -v
-
-# Test database outage interception and HTTP 503 maintenance page
-pytest tests/test_maintenance.py -v
+npm install --legacy-peer-deps
+npm run lint
+npm run build
+npm test
 ```
 
 ---
 
-## 5. Concurrency Test Mechanics
+## 7. GitHub Actions 6-Stage CI Workflow & Automated Tests
 
-`tests/test_concurrency.py` simulates heavy contention on scarce inventory:
-1. Seeds a product with `stock = 3`.
-2. Dispatches 10 simultaneous purchase requests for `quantity = 1` concurrently using `asyncio.gather()`.
-3. Verifies that exactly 3 requests succeed with `HTTP 200`.
-4. Verifies that exactly 7 requests are rejected with `HTTP 409 Conflict`.
-5. Asserts the database stock is strictly `0` with zero overselling.
+The repository includes a 6-stage sequential GitHub Actions workflow in `.github/workflows/ci.yml` that validates every requirement from compilation to final order creation:
+
+1. **Stage 1 (`stage-1-build-and-compile`)**: Installs frontend dependencies (`npm install --legacy-peer-deps`), runs TypeScript type checking (`npm run lint`), builds the production bundle (`npm run build`), compiles all Python files (`py_compile`), and executes `tests/test_standalone_suite.py`.
+2. **Stage 2 (`stage-2-auth-and-rbac`)**: Runs `pytest tests/test_auth.py -v` verifying PBKDF2-HMAC-SHA256 password hashing, login session creation, user registration role constraints, and admin user creation RBAC.
+3. **Stage 3 (`stage-3-catalog-and-multifilter`)**: Runs `pytest tests/test_crud.py -v` verifying product CRUD, SKU uniqueness, and XSS/SQLi input rejection.
+4. **Stage 4 (`stage-4-csv-security-and-admin-env`)**: Runs `pytest tests/test_csv_import.py -v` verifying batch CSV upload and rejection of formula (`=`, `+`, `-`, `@`), XSS, and SQL injection payloads across all columns.
+5. **Stage 5 (`stage-5-concurrency-and-resilience`)**: Runs `pytest tests/test_concurrency.py tests/test_maintenance.py -v` verifying `asyncio.gather()` concurrent checkout row locking and HTTP 503 Maintenance Mode recovery.
+6. **Stage 6 (`stage-6-cardbank-and-order-creation`)**: Runs `pytest tests/test_orders_and_cards.py -v` and `node --test tests/app_behavior.test.mjs` verifying unselected card rejection, `XXX-1111 REJECTED` stock preservation, `XXX-1234 SUCCEED` stock deduction, double-purchase button deactivation, Admin-only Sample CSV visibility, Multi-Column filtering, and end-to-end User Order creation and order history listing.
+
+### Running All Tests Locally
+```bash
+# Run full Python Pytest suite
+pytest -v
+
+# Run Node behavioral suite + Python standalone contract & AST verification suite
+npm test
+```
