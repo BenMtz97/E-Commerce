@@ -176,3 +176,49 @@ async def test_delete_product_success(
 
     get_response = await client.get(f"/api/products/{sample_product.id}")
     assert get_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_purchase_card_succeed_and_rejected_options(
+    client: AsyncClient, sample_product: Product
+) -> None:
+    login_resp = await client.post(
+        "/api/auth/login",
+        json={"email": "user@user.com", "password": "user"},
+    )
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    initial_stock = sample_product.stock
+
+    rejected_resp = await client.post(
+        f"/api/products/{sample_product.id}/purchase",
+        json={"quantity": 2, "card_option": "XXX-1111 REJECTED"},
+        headers=headers,
+    )
+    assert rejected_resp.status_code == 400
+    assert "XXX-1111 REJECTED" in rejected_resp.json()["detail"]
+
+    check_after_reject = await client.get(f"/api/products/{sample_product.id}")
+    assert check_after_reject.json()["stock"] == initial_stock
+
+    succeed_resp = await client.post(
+        f"/api/products/{sample_product.id}/purchase",
+        json={"quantity": 2, "card_option": "XXX-1234 SUCCEED"},
+        headers=headers,
+    )
+    assert succeed_resp.status_code == 200
+    succeed_data = succeed_resp.json()
+    assert succeed_data["remaining_stock"] == initial_stock - 2
+    assert succeed_data["card_option"] == "XXX-1234 SUCCEED"
+    assert succeed_data["order_id"] is not None
+
+    orders_resp = await client.get("/api/orders", headers=headers)
+    assert orders_resp.status_code == 200
+    orders = orders_resp.json()
+    assert len(orders) == 1
+    assert orders[0]["sku"] == sample_product.sku
+    assert orders[0]["quantity"] == 2
+    assert orders[0]["card_option"] == "XXX-1234 SUCCEED"
+

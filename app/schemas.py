@@ -174,9 +174,11 @@ class ProductResponse(ProductBase):
 
 class ProductPurchaseRequest(BaseModel):
     quantity: int = Field(..., gt=0, le=1000)
+    card_option: str = Field(default="XXX-1234 SUCCEED", max_length=64)
 
 
 class ProductPurchaseResponse(BaseModel):
+    order_id: Optional[uuid.UUID] = None
     product_id: uuid.UUID
     sku: str
     name: str
@@ -184,7 +186,26 @@ class ProductPurchaseResponse(BaseModel):
     remaining_stock: int
     unit_price: Decimal
     total_price: Decimal
+    payment_card: str = "XXX-1234 SUCCEED"
+    status: str = "SUCCEEDED"
     timestamp: datetime
+
+
+class OrderResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    user_email: str
+    product_id: uuid.UUID
+    sku: str
+    product_name: str
+    quantity: int
+    unit_price: Decimal
+    total_price: Decimal
+    payment_card: str
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CsvRowError(BaseModel):
@@ -255,4 +276,5 @@ class AuthResponse(BaseModel):
     user: UserResponse
     token: str
     message: str
+
 

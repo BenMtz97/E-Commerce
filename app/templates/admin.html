@@ -34,7 +34,7 @@
         <span>Upload CSV</span>
       </button>
 
-      <button @click="adminModalOpen = true"
+      <button @click="openAdminModal()"
               type="button"
               class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-purple-200 bg-purple-950/40 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-colors">
         <svg class="w-4 h-4 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -42,6 +42,14 @@
         </svg>
         <span>Create Admin User</span>
       </button>
+
+      <a href="/sample-csv"
+         class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors">
+        <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        <span>Sample CSV</span>
+      </a>
 
       <a href="/"
          class="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors">
@@ -65,48 +73,131 @@
     </div>
   </div>
 
-  <div class="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden shadow-xl">
+  <div class="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden shadow-xl"
+       x-data="{
+         filterSku: '',
+         filterName: '',
+         filterCategory: '',
+         filterPrice: '',
+         filterStock: '',
+         filterWeight: '',
+         clearColumnFilters() {
+           this.filterSku = '';
+           this.filterName = '';
+           this.filterCategory = '';
+           this.filterPrice = '';
+           this.filterStock = '';
+           this.filterWeight = '';
+         },
+         matchesRow(sku, name, category, price, stock, weight) {
+           const sSku = this.filterSku.trim().toLowerCase();
+           const sName = this.filterName.trim().toLowerCase();
+           const sCat = this.filterCategory.trim().toLowerCase();
+           const sPrice = this.filterPrice.trim().toLowerCase();
+           const sStock = this.filterStock.trim().toLowerCase();
+           const sWeight = this.filterWeight.trim().toLowerCase();
+           if (sSku && !String(sku).toLowerCase().includes(sSku)) return false;
+           if (sName && !String(name).toLowerCase().includes(sName)) return false;
+           if (sCat && !String(category).toLowerCase().includes(sCat)) return false;
+           if (sPrice && !String(price).toLowerCase().includes(sPrice)) return false;
+           if (sStock && !String(stock).toLowerCase().includes(sStock)) return false;
+           if (sWeight && !String(weight).toLowerCase().includes(sWeight)) return false;
+           return true;
+         }
+       }">
     <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="text-sm font-semibold text-white">
-        Product Inventory List <span class="text-xs text-slate-400 font-normal">({{ products|length }} items shown)</span>
+        Product Inventory List <span class="text-xs text-slate-400 font-normal">({{ products|length }} items) &middot; Multi-Column Filter Active</span>
       </div>
-      <a href="/sample-csv" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
-        Download Sample CSV template
-      </a>
+      <div class="flex items-center gap-3">
+        <button type="button"
+                @click="clearColumnFilters()"
+                class="text-xs text-purple-400 hover:text-purple-300 transition-colors">
+          Reset Column Filters
+        </button>
+        <a href="/sample-csv" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+          Download Sample CSV template
+        </a>
+      </div>
     </div>
 
     <div class="overflow-x-auto">
       <table class="w-full text-left text-xs border-collapse">
         <thead>
-          <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
-            <th class="py-3 px-4">SKU</th>
-            <th class="py-3 px-4">Product Name</th>
-            <th class="py-3 px-4">Category</th>
-            <th class="py-3 px-4 text-right">Price</th>
-            <th class="py-3 px-4 text-center">Stock</th>
-            <th class="py-3 px-4 text-right">Weight</th>
-            <th class="py-3 px-4 text-right">Actions</th>
+          <tr class="border-b border-slate-800 bg-slate-950/90 text-slate-400 font-semibold uppercase tracking-wider">
+            <th class="py-3 px-3 align-top">
+              <div class="mb-1.5">SKU</div>
+              <input type="text"
+                     x-model="filterSku"
+                     placeholder="Filter SKU..."
+                     class="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top">
+              <div class="mb-1.5">Product Name</div>
+              <input type="text"
+                     x-model="filterName"
+                     placeholder="Filter Name..."
+                     class="w-full px-2 py-1 text-xs font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top">
+              <div class="mb-1.5">Category</div>
+              <input type="text"
+                     x-model="filterCategory"
+                     placeholder="Filter Category..."
+                     class="w-full px-2 py-1 text-xs font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top text-right">
+              <div class="mb-1.5">Price</div>
+              <input type="text"
+                     x-model="filterPrice"
+                     placeholder="Filter Price..."
+                     class="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-right text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top text-center">
+              <div class="mb-1.5">Stock</div>
+              <input type="text"
+                     x-model="filterStock"
+                     placeholder="Filter Stock..."
+                     class="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-center text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top text-right">
+              <div class="mb-1.5">Weight</div>
+              <input type="text"
+                     x-model="filterWeight"
+                     placeholder="Filter Weight..."
+                     class="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-right text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500">
+            </th>
+            <th class="py-3 px-3 align-top text-right">
+              <div class="mb-1.5">Actions</div>
+              <button type="button"
+                      @click="clearColumnFilters()"
+                      class="px-2 py-1 text-[11px] font-normal normal-case text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors">
+                Clear
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-800/60 text-slate-200">
           {% for product in products %}
-          <tr id="admin-row-{{ product.id }}" class="hover:bg-slate-900/70 transition-colors">
-            <td class="py-3 px-4 font-mono font-medium text-blue-400 whitespace-nowrap">{{ product.sku }}</td>
-            <td class="py-3 px-4">
+          <tr id="admin-row-{{ product.id }}"
+              x-show="matchesRow('{{ product.sku|replace("'", "\\'") }}', '{{ product.name|replace("'", "\\'") }} {{ (product.description or '')|replace("'", "\\'") }}', '{{ product.category|replace("'", "\\'") }}', '{{ "%.2f"|format(product.price) }}', '{{ product.stock }}', '{{ "%.3f"|format(product.weight_kg) }}')"
+              class="hover:bg-slate-900/70 transition-colors">
+            <td class="py-3 px-3 font-mono font-medium text-blue-400 whitespace-nowrap">{{ product.sku }}</td>
+            <td class="py-3 px-3">
               <div class="font-medium text-white">{{ product.name }}</div>
               {% if product.description %}
               <div class="text-slate-400 text-[11px] truncate max-w-xs">{{ product.description }}</div>
               {% endif %}
             </td>
-            <td class="py-3 px-4">
+            <td class="py-3 px-3">
               <span class="px-2 py-0.5 rounded text-[11px] bg-slate-800 text-slate-300 font-medium">
                 {{ product.category }}
               </span>
             </td>
-            <td class="py-3 px-4 text-right font-mono font-semibold text-white">
+            <td class="py-3 px-3 text-right font-mono font-semibold text-white">
               ${{ "%.2f"|format(product.price) }}
             </td>
-            <td class="py-3 px-4 text-center">
+            <td class="py-3 px-3 text-center">
               {% if product.stock > 10 %}
               <span class="px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 {{ product.stock }} units
@@ -121,10 +212,10 @@
               </span>
               {% endif %}
             </td>
-            <td class="py-3 px-4 text-right font-mono text-slate-400">
+            <td class="py-3 px-3 text-right font-mono text-slate-400">
               {{ "%.3f"|format(product.weight_kg) }} kg
             </td>
-            <td class="py-3 px-4 text-right whitespace-nowrap">
+            <td class="py-3 px-3 text-right whitespace-nowrap">
               <div class="flex items-center justify-end gap-2">
                 <button type="button"
                         @click="openEditModal({
@@ -164,55 +255,4 @@
     </div>
   </div>
 </section>
-
-<div x-data="{
-       adminModalOpen: false,
-       adminEmail: '',
-       adminPassword: '',
-       adminFeedback: '',
-       async submitNewAdmin() {
-         const form = new FormData();
-         form.append('email', this.adminEmail);
-         form.append('password', this.adminPassword);
-         const res = await fetch('/admin/create-admin', { method: 'POST', body: form });
-         const html = await res.text();
-         this.adminFeedback = html;
-         if (res.ok) {
-           this.adminEmail = '';
-           this.adminPassword = '';
-           setTimeout(() => { window.location.reload(); }, 1200);
-         }
-       }
-     }">
-  <div x-show="adminModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto">
-    <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" @click="adminModalOpen = false"></div>
-    <div class="flex min-h-full items-center justify-center p-4">
-      <div class="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-        <div class="flex items-center justify-between pb-4 border-b border-slate-800">
-          <h3 class="text-base font-bold text-white">Create Administrator User</h3>
-          <button @click="adminModalOpen = false" class="text-slate-400 hover:text-white">&times;</button>
-        </div>
-
-        <div x-html="adminFeedback" class="mt-4"></div>
-
-        <form @submit.prevent="submitNewAdmin()" class="space-y-4 mt-4">
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Admin Email Address</label>
-            <input type="email" x-model="adminEmail" required placeholder="newadmin@enterprise.com"
-                   class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-purple-500">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Password</label>
-            <input type="password" x-model="adminPassword" required minlength="4" placeholder="••••••••"
-                   class="w-full px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg text-white focus:outline-none focus:border-purple-500">
-          </div>
-          <div class="flex justify-end gap-3 pt-3">
-            <button type="button" @click="adminModalOpen = false" class="px-4 py-2 text-xs text-slate-300 hover:text-white bg-slate-800 rounded-lg">Cancel</button>
-            <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg">Create Admin</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
 {% endblock %}

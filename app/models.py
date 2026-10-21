@@ -104,3 +104,64 @@ class User(Base):
         nullable=False
     )
 
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True
+    )
+    user_email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        nullable=False,
+        index=True
+    )
+    sku: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False
+    )
+    product_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
+    quantity: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False
+    )
+    unit_price: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+    total_price: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False
+    )
+    payment_card: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="XXX-1234 SUCCEED"
+    )
+    status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="SUCCEEDED"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+

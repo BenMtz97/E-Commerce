@@ -28,11 +28,15 @@
 
       <div id="purchase-feedback-container" class="mb-4"></div>
 
-      <div x-show="purchaseConfirmed" class="pt-2 flex items-center justify-end">
+      <div x-show="purchaseConfirmed" class="pt-2 flex items-center justify-between gap-3">
+        <a href="/orders"
+           class="px-4 py-2 text-xs font-semibold text-emerald-300 bg-emerald-950/50 border border-emerald-500/30 hover:bg-emerald-900/60 rounded-lg transition-colors">
+          View My Orders &rarr;
+        </a>
         <button type="button"
                 @click="closePurchaseModal()"
-                class="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20">
-          Continue
+                class="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20">
+          Close
         </button>
       </div>
 
@@ -40,8 +44,10 @@
             hx-post="/partials/purchase"
             hx-target="#purchase-feedback-container"
             hx-swap="innerHTML"
-            @transaction-confirmed.window="purchaseConfirmed = true"
-            @htmx:after-request="if ($event.detail.successful && $event.detail.xhr.status === 200) purchaseConfirmed = true"
+            @submit="purchaseButtonDisabled = true"
+            @transaction-confirmed.window="purchaseConfirmed = true; purchaseButtonDisabled = true"
+            @transaction-processed.window="purchaseButtonDisabled = true"
+            @htmx:after-request="purchaseButtonDisabled = true"
             class="space-y-4">
 
         <input type="hidden" name="product_id" :value="selectedProduct ? selectedProduct.id : ''">
@@ -54,7 +60,7 @@
             <button type="button"
                     @click="if (purchaseQty > 1) purchaseQty--"
                     class="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                    :disabled="purchaseQty <= 1">
+                    :disabled="purchaseQty <= 1 || purchaseButtonDisabled">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
               </svg>
@@ -64,11 +70,12 @@
                    x-model.number="purchaseQty"
                    min="1"
                    :max="selectedProduct ? selectedProduct.stock : 1"
+                   :readonly="purchaseButtonDisabled"
                    class="w-full text-center bg-transparent border-0 text-white font-mono text-sm focus:ring-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none">
             <button type="button"
                     @click="if (selectedProduct && purchaseQty < selectedProduct.stock) purchaseQty++"
                     class="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                    :disabled="!selectedProduct || purchaseQty >= selectedProduct.stock">
+                    :disabled="!selectedProduct || purchaseQty >= selectedProduct.stock || purchaseButtonDisabled">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
               </svg>
@@ -76,10 +83,27 @@
           </div>
         </div>
 
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1.5">
+            Cardbank Payment Selector (Test Mode)
+          </label>
+          <select name="card_option"
+                  x-model="purchaseCardOption"
+                  :disabled="purchaseButtonDisabled"
+                  class="w-full px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50">
+            <option value="XXX-1234 SUCCEED">XXX-1234 SUCCEED</option>
+            <option value="XXX-1111 REJECTED">XXX-1111 REJECTED</option>
+          </select>
+        </div>
+
         <div class="rounded-lg bg-slate-950/60 border border-slate-800/80 p-3.5 space-y-2">
           <div class="flex justify-between text-xs text-slate-400">
             <span>Unit Price</span>
             <span class="font-mono text-slate-300" x-text="selectedProduct ? '$' + Number(selectedProduct.price).toFixed(2) : '$0.00'"></span>
+          </div>
+          <div class="flex justify-between text-xs text-slate-400">
+            <span>Selected Card</span>
+            <span class="font-mono" :class="purchaseCardOption.includes('SUCCEED') ? 'text-emerald-400' : 'text-rose-400'" x-text="purchaseCardOption"></span>
           </div>
           <div class="pt-2 border-t border-slate-800 flex justify-between text-sm font-semibold text-white">
             <span>Total Cost</span>
@@ -91,11 +115,12 @@
           <button type="button"
                   @click="closePurchaseModal()"
                   class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-            Cancel
+            Close
           </button>
           <button type="submit"
-                  class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20">
-            Confirm Transaction
+                  :disabled="purchaseButtonDisabled"
+                  class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm shadow-blue-500/20">
+            <span x-text="purchaseButtonDisabled ? 'Purchase Deactivated' : 'Confirm Purchase'"></span>
           </button>
         </div>
       </form>

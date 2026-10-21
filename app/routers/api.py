@@ -9,6 +9,7 @@ from app.schemas import (
     AdminCreateRequest,
     AuthResponse,
     CsvImportSummary,
+    OrderResponse,
     ProductCreate,
     ProductPurchaseRequest,
     ProductPurchaseResponse,
@@ -20,6 +21,7 @@ from app.schemas import (
 )
 from app.security import (
     create_session_token,
+    get_current_user_optional,
     require_admin_user,
     require_authenticated_user,
 )
@@ -27,6 +29,8 @@ from app.services import (
     CsvImportService,
     DuplicateSkuException,
     InsufficientStockException,
+    OrderService,
+    PaymentRejectedException,
     ProductNotFoundException,
     ProductService,
     PurchaseService,
@@ -37,6 +41,7 @@ from app.services import (
 router = APIRouter()
 products_router = APIRouter(prefix="/api/products", tags=["Products"])
 auth_router = APIRouter(prefix="/api/auth", tags=["Auth"])
+orders_router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
 
 @products_router.get("", response_model=List[ProductResponse], status_code=status.HTTP_200_OK)
@@ -136,6 +141,7 @@ async def delete_product(
 async def purchase_product(
     product_id: uuid.UUID,
     payload: ProductPurchaseRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> ProductPurchaseResponse:
     try:
@@ -143,10 +149,18 @@ async def purchase_product(
             db=db,
             product_id=product_id,
             quantity=payload.quantity,
+            card_option=payload.card_option,
+            user_id=current_user.id if current_user else None,
+            user_email=current_user.email if current_user else None,
         )
     except ProductNotFoundException as exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exception),
+        )
+    except PaymentRejectedException as exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exception),
         )
     except InsufficientStockException as exception:
@@ -274,5 +288,16 @@ async def logout(response: Response) -> dict:
     return {"message": "Logged out successfully."}
 
 
+@orders_router.get("", response_model=List[OrderResponse], status_code=status.HTTP_200_OK)
+async def list_my_orders(
+    current_user: User = Depends(require_authenticated_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[OrderResponse]:
+    orders = await OrderService.list_user_orders(db, current_user.id)
+    return [OrderResponse.model_validate(o) for o in orders]
+
+
 router.include_router(products_router)
 router.include_router(auth_router)
+router.include_router(orders_router)
+

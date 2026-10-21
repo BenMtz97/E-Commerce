@@ -1,14 +1,24 @@
 {% if success %}
 <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/40 p-4 text-emerald-200 mb-4 animate-in fade-in duration-200">
-  <div class="flex items-center gap-2 font-semibold text-sm text-emerald-300 mb-1">
-    <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-    </svg>
-    <span>Transaction Authorized</span>
+  <div class="flex items-center justify-between gap-2 mb-1">
+    <div class="flex items-center gap-2 font-semibold text-sm text-emerald-300">
+      <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+      <span>Purchase Succeeded</span>
+    </div>
+    {% if purchase and purchase.order_id %}
+    <span class="text-[11px] font-mono text-emerald-300 bg-emerald-900/50 px-2 py-0.5 rounded border border-emerald-500/30">
+      Order #{{ (purchase.order_id|string)[:8] }}
+    </span>
+    {% endif %}
   </div>
   <p class="text-xs text-emerald-300/90 leading-relaxed">{{ message }}</p>
-  <div class="mt-2 text-xs font-mono text-emerald-400/80">
-    Remaining stock: {{ product.stock }} units &middot; Total charged: ${{ "%.2f"|format(purchase.total_price) }}
+  <div class="mt-2 pt-2 border-t border-emerald-500/20 flex items-center justify-between gap-2 text-xs font-mono text-emerald-400/80">
+    <span>Remaining stock: {{ product.stock }} units &middot; Total: ${{ "%.2f"|format(purchase.total_price) }}</span>
+    <a href="/orders" class="px-2.5 py-1 rounded-md bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 font-sans font-semibold transition-colors">
+      View My Orders &rarr;
+    </a>
   </div>
 </div>
 

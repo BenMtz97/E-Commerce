@@ -29,6 +29,8 @@ import {
   Shield,
   List,
   LayoutGrid,
+  ShoppingBag,
+  CreditCard,
 } from 'lucide-react';
 
 interface UserAccount {
@@ -41,6 +43,21 @@ interface UserSession {
   id: string;
   email: string;
   role: 'admin' | 'user';
+}
+
+interface UserOrder {
+  id: string;
+  userId: string;
+  userEmail: string;
+  productId: string;
+  sku: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+  paymentCard: 'XXX-1234 SUCCEED' | 'XXX-1111 REJECTED';
+  status: 'SUCCEEDED' | 'REJECTED';
+  createdAt: string;
 }
 
 const INITIAL_USERS: UserAccount[] = [
@@ -1018,7 +1035,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'storefront' | 'admin-list' | 'concurrency' | 'architecture'>('storefront');
+  const [activeTab, setActiveTab] = useState<'storefront' | 'admin-list' | 'my-orders' | 'concurrency' | 'architecture'>('storefront');
 
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     try {
@@ -1027,6 +1044,26 @@ export default function App() {
     } catch {
       return null;
     }
+  });
+
+  const [sessionBanner, setSessionBanner] = useState<string | null>(null);
+
+  const [orders, setOrders] = useState<UserOrder[]>(() => {
+    try {
+      const stored = localStorage.getItem('ecommerce_app_orders');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [columnFilters, setColumnFilters] = useState({
+    sku: '',
+    name: '',
+    category: '',
+    price: '',
+    stock: '',
+    weight: '',
   });
 
   const [registeredUsers, setRegisteredUsers] = useState<UserAccount[]>(INITIAL_USERS);
@@ -1083,7 +1120,9 @@ export default function App() {
 
   const [purchaseModalProduct, setPurchaseModalProduct] = useState<ProductItem | null>(null);
   const [purchaseQty, setPurchaseQty] = useState(1);
-  const [purchaseStatus, setPurchaseStatus] = useState<{ success: boolean; message: string; remaining?: number } | null>(null);
+  const [selectedCardOption, setSelectedCardOption] = useState<'XXX-1234 SUCCEED' | 'XXX-1111 REJECTED'>('XXX-1234 SUCCEED');
+  const [purchaseButtonDisabled, setPurchaseButtonDisabled] = useState(false);
+  const [purchaseStatus, setPurchaseStatus] = useState<{ success: boolean; message: string; remaining?: number; orderId?: string } | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
   const [csvModalOpen, setCsvModalOpen] = useState(false);
@@ -1096,6 +1135,11 @@ export default function App() {
   const [concurrencyRunning, setConcurrencyRunning] = useState(false);
   const [concurrencyLogs, setConcurrencyLogs] = useState<ConcurrencyResult[]>([]);
   const [concurrencySummary, setConcurrencySummary] = useState<{ success: number; conflict: number } | null>(null);
+
+  const userOrders = useMemo(() => {
+    if (!currentUser) return [];
+    return orders.filter((o) => o.userEmail.toLowerCase() === currentUser.email.toLowerCase());
+  }, [orders, currentUser]);
 
   const categories = useMemo(() => {
     const cats = Array.from(new Set(products.map((p) => p.category))).sort();
@@ -1114,9 +1158,42 @@ export default function App() {
         p.sku.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q);
-      return matchesCategory && matchesQuery;
+
+      const fSku = columnFilters.sku.trim().toLowerCase();
+      const fName = columnFilters.name.trim().toLowerCase();
+      const fCat = columnFilters.category.trim().toLowerCase();
+      const fPrice = columnFilters.price.trim().toLowerCase();
+      const fStock = columnFilters.stock.trim().toLowerCase();
+      const fWeight = columnFilters.weight.trim().toLowerCase();
+
+      const matchesColSku = !fSku || p.sku.toLowerCase().includes(fSku);
+      const matchesColName =
+        !fName ||
+        p.name.toLowerCase().includes(fName) ||
+        p.description.toLowerCase().includes(fName);
+      const matchesColCat = !fCat || p.category.toLowerCase().includes(fCat);
+      const matchesColPrice =
+        !fPrice ||
+        p.price.toFixed(2).includes(fPrice) ||
+        String(p.price).includes(fPrice);
+      const matchesColStock = !fStock || String(p.stock).includes(fStock);
+      const matchesColWeight =
+        !fWeight ||
+        p.weight_kg.toFixed(3).includes(fWeight) ||
+        String(p.weight_kg).includes(fWeight);
+
+      return (
+        matchesCategory &&
+        matchesQuery &&
+        matchesColSku &&
+        matchesColName &&
+        matchesColCat &&
+        matchesColPrice &&
+        matchesColStock &&
+        matchesColWeight
+      );
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [products, selectedCategory, searchQuery, columnFilters]);
 
   const totalPages = useMemo(() => {
     if (pageSize === -1) return 1;
@@ -1150,18 +1227,51 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const handleQuickDemoAdmin = () => {
-    const session: UserSession = { id: 'user-admin-01', email: 'admin@admin.com', role: 'admin' };
+  const handleColumnFilterChange = (field: keyof typeof columnFilters, value: string) => {
+    setColumnFilters((prev) => ({ ...prev, [field]: value }));
+    setCurrentPage(1);
+  };
+
+  const handleClearColumnFilters = () => {
+    setColumnFilters({
+      sku: '',
+      name: '',
+      category: '',
+      price: '',
+      stock: '',
+      weight: '',
+    });
+    setCurrentPage(1);
+  };
+
+  const activateUserSession = (session: UserSession, customMessage?: string) => {
     setCurrentUser(session);
     localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-    setActiveTab('admin-list');
+    setLoginModalOpen(false);
+    setRegisterModalOpen(false);
+    setCurrentPage(1);
+    if (session.role === 'admin') {
+      setActiveTab('admin-list');
+      setSessionBanner(
+        customMessage || `Session Active: Logged in as ${session.email} (Administrator) — Viewing Product Inventory List.`
+      );
+    } else {
+      setActiveTab('storefront');
+      setSessionBanner(
+        customMessage || `Session Active: Logged in as ${session.email} (Customer) — Storefront Purchases Enabled.`
+      );
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleQuickDemoAdmin = () => {
+    const session: UserSession = { id: 'user-admin-01', email: 'admin@admin.com', role: 'admin' };
+    activateUserSession(session);
   };
 
   const handleQuickDemoUser = () => {
     const session: UserSession = { id: 'user-normal-01', email: 'user@user.com', role: 'user' };
-    setCurrentUser(session);
-    localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-    setActiveTab('storefront');
+    activateUserSession(session);
   };
 
   const handleLoginSubmit = (e?: React.FormEvent) => {
@@ -1177,36 +1287,23 @@ export default function App() {
 
     if (email === 'admin@admin.com' && password === 'admin') {
       const session: UserSession = { id: 'user-admin-01', email: 'admin@admin.com', role: 'admin' };
-      setCurrentUser(session);
-      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-      setLoginModalOpen(false);
       setLoginForm({ email: '', password: '' });
-      setActiveTab('admin-list');
+      activateUserSession(session);
       return;
     }
 
     if (email === 'user@user.com' && password === 'user') {
       const session: UserSession = { id: 'user-normal-01', email: 'user@user.com', role: 'user' };
-      setCurrentUser(session);
-      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-      setLoginModalOpen(false);
       setLoginForm({ email: '', password: '' });
-      setActiveTab('storefront');
+      activateUserSession(session);
       return;
     }
 
     const matched = registeredUsers.find((u) => u.email.toLowerCase() === email);
     if (matched) {
       const session: UserSession = { id: matched.id, email: matched.email, role: matched.role };
-      setCurrentUser(session);
-      localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-      setLoginModalOpen(false);
       setLoginForm({ email: '', password: '' });
-      if (matched.role === 'admin') {
-        setActiveTab('admin-list');
-      } else {
-        setActiveTab('storefront');
-      }
+      activateUserSession(session);
       return;
     }
 
@@ -1244,11 +1341,8 @@ export default function App() {
     };
     setRegisteredUsers((prev) => [...prev, newUser]);
     const session: UserSession = { id: newUser.id, email: newUser.email, role: 'user' };
-    setCurrentUser(session);
-    localStorage.setItem('ecommerce_app_session', JSON.stringify(session));
-    setRegisterModalOpen(false);
     setRegisterForm({ email: '', password: '', confirmPassword: '' });
-    setActiveTab('storefront');
+    activateUserSession(session, `Account '${email}' registered and logged in as Customer!`);
   };
 
   const handleCreateAdminSubmit = (e?: React.FormEvent) => {
@@ -1286,13 +1380,15 @@ export default function App() {
       role: 'admin',
     };
     setRegisteredUsers((prev) => [...prev, newAdmin]);
-    setCreateAdminSuccess(`Administrator account '${email}' created successfully!`);
+    setCreateAdminSuccess(`Administrator account '${email}' created successfully! They can now log in.`);
+    setSessionBanner(`New Administrator account '${email}' provisioned.`);
     setCreateAdminForm({ email: '', password: '', confirmPassword: '' });
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('ecommerce_app_session');
+    setSessionBanner('You have been logged out.');
     setActiveTab('storefront');
   };
 
@@ -1321,11 +1417,14 @@ export default function App() {
     }
     setPurchaseModalProduct(product);
     setPurchaseQty(1);
+    setSelectedCardOption('XXX-1234 SUCCEED');
+    setPurchaseButtonDisabled(false);
     setPurchaseStatus(null);
   };
 
   const handleExecutePurchase = () => {
-    if (!purchaseModalProduct) return;
+    if (!purchaseModalProduct || purchaseButtonDisabled || isPurchasing) return;
+    setPurchaseButtonDisabled(true);
     setIsPurchasing(true);
 
     setTimeout(() => {
@@ -1334,6 +1433,15 @@ export default function App() {
         setPurchaseStatus({
           success: false,
           message: `Product ${purchaseModalProduct.sku} not found.`,
+        });
+        setIsPurchasing(false);
+        return;
+      }
+
+      if (selectedCardOption === 'XXX-1111 REJECTED') {
+        setPurchaseStatus({
+          success: false,
+          message: `Purchase rejected: Payment with card XXX-1111 REJECTED was declined by the issuing bank. Product stock (${current.stock} units) was not modified.`,
         });
         setIsPurchasing(false);
         return;
@@ -1354,10 +1462,35 @@ export default function App() {
       );
       setPurchaseModalProduct((prev) => (prev ? { ...prev, stock: updatedStock } : null));
 
+      const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+      const newOrder: UserOrder = {
+        id: orderId,
+        userId: currentUser?.id || 'user-normal-01',
+        userEmail: currentUser?.email || 'user@user.com',
+        productId: current.id,
+        sku: current.sku,
+        productName: current.name,
+        quantity: purchaseQty,
+        unitPrice: current.price,
+        totalPrice: Number((current.price * purchaseQty).toFixed(2)),
+        paymentCard: selectedCardOption,
+        status: 'SUCCEEDED',
+        createdAt: new Date().toISOString(),
+      };
+
+      setOrders((prev) => {
+        const updated = [newOrder, ...prev];
+        try {
+          localStorage.setItem('ecommerce_app_orders', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
       setPurchaseStatus({
         success: true,
         remaining: updatedStock,
-        message: `Transaction authorized. Charged $${(purchaseModalProduct.price * purchaseQty).toFixed(2)} for ${purchaseQty} unit(s).`,
+        orderId,
+        message: `Purchase succeeded with card ${selectedCardOption}! Order #${orderId} created for ${purchaseQty} unit(s) of ${current.name}. Charged $${(current.price * purchaseQty).toFixed(2)}.`,
       });
       setIsPurchasing(false);
     }, 280);
@@ -1982,14 +2115,27 @@ export default function App() {
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => setActiveTab('storefront')}
-                    className={`transition-colors whitespace-nowrap shrink-0 ${
-                      activeTab === 'storefront' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
-                    }`}
-                  >
-                    Catalog
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setActiveTab('storefront')}
+                      className={`transition-colors whitespace-nowrap shrink-0 ${
+                        activeTab === 'storefront' ? 'text-white font-semibold' : 'hover:text-white text-slate-400'
+                      }`}
+                    >
+                      Catalog
+                    </button>
+                    {currentUser?.role === 'user' && (
+                      <button
+                        onClick={() => setActiveTab('my-orders')}
+                        className={`flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                          activeTab === 'my-orders' ? 'text-emerald-300 font-semibold' : 'hover:text-white text-slate-400'
+                        }`}
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>My Orders ({userOrders.length})</span>
+                      </button>
+                    )}
+                  </>
                 )}
 
                 <button
@@ -2029,6 +2175,7 @@ export default function App() {
                         <span className="font-mono">{currentUser.email}</span>
                       </div>
                       <button
+                        type="button"
                         onClick={() => {
                           setCreateAdminError(null);
                           setCreateAdminSuccess(null);
@@ -2037,14 +2184,24 @@ export default function App() {
                         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-purple-200 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-colors"
                       >
                         <UserPlus className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="hidden sm:inline">Create Admin</span>
+                        <span>Create Admin User</span>
                       </button>
                     </>
                   ) : (
-                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="font-mono">{currentUser.email}</span>
-                    </div>
+                    <>
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="font-mono">{currentUser.email}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('my-orders')}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-200 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/30 rounded-lg transition-colors"
+                      >
+                        <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>My Orders ({userOrders.length})</span>
+                      </button>
+                    </>
                   )}
 
                   <button
@@ -2137,17 +2294,41 @@ export default function App() {
                 >
                   Storefront Preview
                 </button>
+                <button
+                  onClick={() => {
+                    setCreateAdminError(null);
+                    setCreateAdminSuccess(null);
+                    setCreateAdminModalOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left py-2 text-sm font-medium text-purple-300 hover:text-white"
+                >
+                  Create Admin User
+                </button>
               </>
             ) : (
-              <button
-                onClick={() => {
-                  setActiveTab('storefront');
-                  setMobileMenuOpen(false);
-                }}
-                className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
-              >
-                Catalog
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    setActiveTab('storefront');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left py-2 text-sm font-medium text-slate-200 hover:text-white"
+                >
+                  Catalog
+                </button>
+                {currentUser?.role === 'user' && (
+                  <button
+                    onClick={() => {
+                      setActiveTab('my-orders');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="block w-full text-left py-2 text-sm font-medium text-emerald-300 hover:text-white"
+                  >
+                    My Orders ({userOrders.length})
+                  </button>
+                )}
+              </>
             )}
             <button
               onClick={() => {
@@ -2193,8 +2374,24 @@ export default function App() {
         )}
       </header>
 
-
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {sessionBanner && (
+          <div className="mb-6 rounded-xl border border-blue-500/30 bg-blue-950/40 px-4 py-3 flex items-center justify-between gap-3 text-xs text-blue-200 shadow-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+              <span>{sessionBanner}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSessionBanner(null)}
+              className="text-slate-400 hover:text-white p-1"
+              aria-label="Dismiss notification"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {activeTab === 'storefront' && (
           <section>
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b border-slate-800 mb-6">
@@ -2238,16 +2435,16 @@ export default function App() {
                       <Upload className="w-4 h-4 text-slate-400" />
                       <span>Upload CSV</span>
                     </button>
+
+                    <button
+                      onClick={handleDownloadSampleCsv}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-slate-400" />
+                      <span>Sample CSV</span>
+                    </button>
                   </>
                 )}
-
-                <button
-                  onClick={handleDownloadSampleCsv}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors"
-                >
-                  <Download className="w-4 h-4 text-slate-400" />
-                  <span>Sample CSV</span>
-                </button>
               </div>
             </div>
 
@@ -2745,42 +2942,118 @@ export default function App() {
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-2xl">
+              <div className="p-3.5 border-b border-slate-800 bg-slate-950/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <span className="text-slate-300 font-medium">
+                  Multi-Column Filter: Type into any column header input below to filter simultaneously across columns.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearColumnFilters}
+                  className="text-purple-400 hover:text-purple-300 font-semibold self-start sm:self-auto"
+                >
+                  Reset All Column Filters
+                </button>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
-                      <th className="py-3.5 px-4">SKU</th>
-                      <th className="py-3.5 px-4">Product Name & Category</th>
-                      <th className="py-3.5 px-4 text-right">Price</th>
-                      <th className="py-3.5 px-4 text-center">Stock Level</th>
-                      <th className="py-3.5 px-4 text-right">Weight</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                    <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 font-semibold uppercase tracking-wider">
+                      <th className="py-3 px-3 align-top min-w-[140px]">
+                        <div className="mb-1.5">SKU</div>
+                        <input
+                          type="text"
+                          value={columnFilters.sku}
+                          onChange={(e) => handleColumnFilterChange('sku', e.target.value)}
+                          placeholder="Filter SKU..."
+                          className="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top min-w-[200px]">
+                        <div className="mb-1.5">Product Name</div>
+                        <input
+                          type="text"
+                          value={columnFilters.name}
+                          onChange={(e) => handleColumnFilterChange('name', e.target.value)}
+                          placeholder="Filter Name..."
+                          className="w-full px-2 py-1 text-xs font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top min-w-[130px]">
+                        <div className="mb-1.5">Category</div>
+                        <input
+                          type="text"
+                          value={columnFilters.category}
+                          onChange={(e) => handleColumnFilterChange('category', e.target.value)}
+                          placeholder="Filter Category..."
+                          className="w-full px-2 py-1 text-xs font-normal normal-case text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top text-right min-w-[110px]">
+                        <div className="mb-1.5">Price</div>
+                        <input
+                          type="text"
+                          value={columnFilters.price}
+                          onChange={(e) => handleColumnFilterChange('price', e.target.value)}
+                          placeholder="Filter Price..."
+                          className="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-right text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top text-center min-w-[140px]">
+                        <div className="mb-1.5">Stock Level</div>
+                        <input
+                          type="text"
+                          value={columnFilters.stock}
+                          onChange={(e) => handleColumnFilterChange('stock', e.target.value)}
+                          placeholder="Filter Stock..."
+                          className="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-center text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top text-right min-w-[110px]">
+                        <div className="mb-1.5">Weight</div>
+                        <input
+                          type="text"
+                          value={columnFilters.weight}
+                          onChange={(e) => handleColumnFilterChange('weight', e.target.value)}
+                          placeholder="Filter Weight..."
+                          className="w-full px-2 py-1 text-xs font-mono font-normal normal-case text-right text-white bg-slate-900 border border-slate-700 rounded focus:outline-none focus:border-purple-500"
+                        />
+                      </th>
+                      <th className="py-3 px-3 align-top text-right min-w-[90px]">
+                        <div className="mb-1.5">Actions</div>
+                        <button
+                          type="button"
+                          onClick={handleClearColumnFilters}
+                          className="px-2 py-1 text-[11px] font-normal normal-case text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded transition-colors"
+                        >
+                          Clear
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
                     {paginatedProducts.length > 0 ? (
                       paginatedProducts.map((product) => (
                         <tr key={product.id} className="hover:bg-slate-900/80 transition-colors">
-                          <td className="py-3 px-4 font-mono font-semibold text-blue-400 whitespace-nowrap">
+                          <td className="py-3 px-3 font-mono font-semibold text-blue-400 whitespace-nowrap">
                             {product.sku}
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-3">
                             <div className="font-semibold text-white text-sm">{product.name}</div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-300">
-                                {product.category}
-                              </span>
-                              {product.description && (
-                                <span className="text-slate-400 text-xs truncate max-w-md">
-                                  {product.description}
-                                </span>
-                              )}
-                            </div>
+                            {product.description && (
+                              <div className="text-slate-400 text-xs truncate max-w-md mt-0.5">
+                                {product.description}
+                              </div>
+                            )}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-white text-sm">
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-300">
+                              {product.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-white text-sm whitespace-nowrap">
                             ${product.price.toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             <div className="inline-flex items-center gap-2">
                               <button
                                 onClick={() => handleQuickAdjustStock(product.id, -1)}
@@ -2809,10 +3082,10 @@ export default function App() {
                               </button>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-right font-mono text-slate-400 whitespace-nowrap">
+                          <td className="py-3 px-3 text-right font-mono text-slate-400 whitespace-nowrap">
                             {product.weight_kg.toFixed(3)} kg
                           </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => handleOpenEdit(product)}
@@ -2834,7 +3107,7 @@ export default function App() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
                           No matching products in catalog inventory.
                         </td>
                       </tr>
@@ -2888,6 +3161,118 @@ export default function App() {
                       <ChevronsRight className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'my-orders' && (
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                    <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Customer Order Portal</span>
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Account: <strong className="text-white font-mono">{currentUser?.email || 'Guest'}</strong>
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  My Orders
+                </h1>
+                <p className="text-xs text-slate-400 mt-1">
+                  All confirmed purchases associated with your user account.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('storefront')}
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+              >
+                <span>&larr; Back to Catalog</span>
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-2xl">
+              <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                <span className="text-sm font-semibold text-white">
+                  Order History ({userOrders.length} {userOrders.length === 1 ? 'order' : 'orders'})
+                </span>
+              </div>
+
+              {userOrders.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-semibold uppercase tracking-wider">
+                        <th className="py-3.5 px-4">Order ID</th>
+                        <th className="py-3.5 px-4">SKU</th>
+                        <th className="py-3.5 px-4">Product Name</th>
+                        <th className="py-3.5 px-4 text-center">Qty</th>
+                        <th className="py-3.5 px-4 text-right">Unit Price</th>
+                        <th className="py-3.5 px-4 text-right">Total Charged</th>
+                        <th className="py-3.5 px-4">Card Used</th>
+                        <th className="py-3.5 px-4">Status</th>
+                        <th className="py-3.5 px-4 text-right">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                      {userOrders.map((order) => (
+                        <tr key={order.id} className="hover:bg-slate-900/80 transition-colors">
+                          <td className="py-3 px-4 font-mono text-slate-300 font-semibold whitespace-nowrap">
+                            #{order.id}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-blue-400 whitespace-nowrap">
+                            {order.sku}
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-white">
+                            {order.productName}
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono">
+                            {order.quantity}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-300">
+                            ${order.unitPrice.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
+                            ${order.totalPrice.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">
+                            {order.paymentCard}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-slate-400 whitespace-nowrap">
+                            {new Date(order.createdAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-12 text-center">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
+                    <ShoppingBag className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">No orders yet</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto mb-5">
+                    Complete a purchase using card XXX-1234 SUCCEED in the catalog to create an order associated with your account.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('storefront')}
+                    className="inline-flex px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors"
+                  >
+                    Browse Products
+                  </button>
                 </div>
               )}
             </div>
@@ -3686,82 +4071,111 @@ export default function App() {
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                     )}
-                    <span>{purchaseStatus.success ? 'Transaction Authorized' : 'Transaction Blocked'}</span>
+                    <span>{purchaseStatus.success ? 'Purchase Succeeded' : 'Purchase Rejected'}</span>
                   </div>
                   <p>{purchaseStatus.message}</p>
                 </div>
               )}
 
-              {purchaseStatus?.success ? (
-                <div className="pt-2 flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setPurchaseModalProduct(null)}
-                    className="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
-                  >
-                    Continue
-                  </button>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                    Purchase Quantity (Available:{' '}
+                    <span className="font-mono text-emerald-400">{purchaseModalProduct.stock}</span>)
+                  </label>
+                  <div className="flex items-center rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPurchaseQty((q) => Math.max(1, q - 1))}
+                      disabled={purchaseQty <= 1 || purchaseButtonDisabled}
+                      className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <input
+                      type="number"
+                      value={purchaseQty}
+                      disabled={purchaseButtonDisabled}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 1;
+                        setPurchaseQty(Math.min(purchaseModalProduct.stock, Math.max(1, val)));
+                      }}
+                      className="w-full text-center bg-transparent border-0 text-white font-mono text-sm focus:ring-0 focus:outline-none disabled:opacity-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPurchaseQty((q) => Math.min(purchaseModalProduct.stock, q + 1))
+                      }
+                      disabled={purchaseQty >= purchaseModalProduct.stock || purchaseButtonDisabled}
+                      className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Cardbank Payment Selector (Test Options)</span>
+                  </label>
+                  <select
+                    value={selectedCardOption}
+                    disabled={purchaseButtonDisabled}
+                    onChange={(e) =>
+                      setSelectedCardOption(e.target.value as 'XXX-1234 SUCCEED' | 'XXX-1111 REJECTED')
+                    }
+                    className="w-full px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                  >
+                    <option value="XXX-1234 SUCCEED">XXX-1234 SUCCEED</option>
+                    <option value="XXX-1111 REJECTED">XXX-1111 REJECTED</option>
+                  </select>
+                </div>
+
+                <div className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-3.5 space-y-2">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>Unit Price</span>
+                    <span className="font-mono text-slate-300">
+                      ${purchaseModalProduct.price.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>Selected Card</span>
+                    <span
+                      className={`font-mono font-semibold ${
+                        selectedCardOption === 'XXX-1234 SUCCEED' ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {selectedCardOption}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-semibold text-white">
+                    <span>Total Cost</span>
+                    <span className="font-mono text-emerald-400">
+                      ${(purchaseModalProduct.price * purchaseQty).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                      Purchase Quantity (Available:{' '}
-                      <span className="font-mono text-emerald-400">{purchaseModalProduct.stock}</span>)
-                    </label>
-                    <div className="flex items-center rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5">
+                    {purchaseStatus?.success && (
                       <button
                         type="button"
-                        onClick={() => setPurchaseQty((q) => Math.max(1, q - 1))}
-                        disabled={purchaseQty <= 1}
-                        className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                        aria-label="Decrease quantity"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <input
-                        type="number"
-                        value={purchaseQty}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1;
-                          setPurchaseQty(Math.min(purchaseModalProduct.stock, Math.max(1, val)));
+                        onClick={() => {
+                          setPurchaseModalProduct(null);
+                          setActiveTab('my-orders');
                         }}
-                        className="w-full text-center bg-transparent border-0 text-white font-mono text-sm focus:ring-0 focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPurchaseQty((q) => Math.min(purchaseModalProduct.stock, q + 1))
-                        }
-                        disabled={purchaseQty >= purchaseModalProduct.stock}
-                        className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
-                        aria-label="Increase quantity"
+                        className="px-3.5 py-2 text-xs font-semibold text-emerald-300 bg-emerald-950/50 border border-emerald-500/30 hover:bg-emerald-900/60 rounded-lg transition-colors"
                       >
-                        <Plus className="w-4 h-4" />
+                        View My Orders &rarr;
                       </button>
-                    </div>
+                    )}
                   </div>
-
-                  <div className="rounded-lg bg-slate-950/60 border border-slate-800/80 p-3.5 space-y-2">
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>Unit Price</span>
-                      <span className="font-mono text-slate-300">
-                        ${purchaseModalProduct.price.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs text-slate-400">
-                      <span>Concurrency Lock</span>
-                      <span className="font-mono text-blue-400">SELECT FOR UPDATE</span>
-                    </div>
-                    <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-semibold text-white">
-                      <span>Total Cost</span>
-                      <span className="font-mono text-emerald-400">
-                        ${(purchaseModalProduct.price * purchaseQty).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-end gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setPurchaseModalProduct(null)}
@@ -3772,14 +4186,18 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleExecutePurchase}
-                      disabled={isPurchasing || purchaseModalProduct.stock <= 0}
-                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded-lg transition-colors shadow-sm shadow-blue-500/20"
+                      disabled={purchaseButtonDisabled || isPurchasing || purchaseModalProduct.stock <= 0}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm shadow-blue-500/20"
                     >
-                      {isPurchasing ? 'Locking & Deducting...' : 'Confirm Transaction'}
+                      {isPurchasing
+                        ? 'Processing...'
+                        : purchaseButtonDisabled
+                        ? 'Purchase Deactivated'
+                        : 'Confirm Purchase'}
                     </button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </div>

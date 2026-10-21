@@ -19,6 +19,8 @@ from app.services import (
     CsvImportService,
     DuplicateSkuException,
     InsufficientStockException,
+    OrderService,
+    PaymentRejectedException,
     ProductNotFoundException,
     ProductService,
     PurchaseService,
@@ -138,6 +140,7 @@ async def purchase_partial(
     request: Request,
     product_id: uuid.UUID = Form(...),
     quantity: int = Form(...),
+    card_option: str = Form("XXX-1234 SUCCEED"),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
@@ -150,13 +153,17 @@ async def purchase_partial(
                 "product": None,
                 "message": "Authentication required. Please log in as a user to purchase products.",
             },
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_200_OK,
+            headers={"HX-Trigger": "transactionProcessed"},
         )
     try:
         purchase_result = await PurchaseService.purchase_product(
             db=db,
             product_id=product_id,
             quantity=quantity,
+            card_option=card_option,
+            user_id=current_user.id,
+            user_email=current_user.email,
         )
         product = await ProductService.get_by_id(db, product_id)
         return templates.TemplateResponse(
@@ -166,9 +173,23 @@ async def purchase_partial(
                 "success": True,
                 "purchase": purchase_result,
                 "product": product,
-                "message": f"Successfully purchased {quantity} unit(s) of {product.name}.",
+                "message": f"Purchase succeeded with card {card_option}! Order created for {quantity} unit(s) of {product.name}.",
             },
+            status_code=status.HTTP_200_OK,
             headers={"HX-Trigger": "transactionConfirmed"},
+        )
+    except PaymentRejectedException as exception:
+        product = await ProductService.get_by_id(db, product_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/purchase_result.html",
+            {
+                "success": False,
+                "product": product,
+                "message": str(exception),
+            },
+            status_code=status.HTTP_200_OK,
+            headers={"HX-Trigger": "transactionProcessed"},
         )
     except InsufficientStockException as exception:
         product = await ProductService.get_by_id(db, product_id)
@@ -180,7 +201,8 @@ async def purchase_partial(
                 "product": product,
                 "message": str(exception),
             },
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=status.HTTP_200_OK,
+            headers={"HX-Trigger": "transactionProcessed"},
         )
     except ProductNotFoundException as exception:
         return templates.TemplateResponse(
@@ -191,7 +213,8 @@ async def purchase_partial(
                 "product": None,
                 "message": str(exception),
             },
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_200_OK,
+            headers={"HX-Trigger": "transactionProcessed"},
         )
     except ValueError as exception:
         product = await ProductService.get_by_id(db, product_id)
@@ -203,7 +226,8 @@ async def purchase_partial(
                 "product": product,
                 "message": str(exception),
             },
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_200_OK,
+            headers={"HX-Trigger": "transactionProcessed"},
         )
 
 
@@ -564,6 +588,25 @@ async def admin_view(
     )
 
 
+@router.get("/orders", response_class=HTMLResponse)
+async def user_orders_view(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    if not current_user:
+        return RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    orders = await OrderService.list_user_orders(db, current_user.id)
+    return templates.TemplateResponse(
+        request,
+        "orders.html",
+        {
+            "orders": orders,
+            "current_user": current_user,
+        },
+    )
+
+
 @router.post("/login", response_class=HTMLResponse)
 async def web_login(
     request: Request,
@@ -580,8 +623,12 @@ async def web_login(
     token = create_session_token(user.id, user.email, user.role)
     redirect_target = "/admin" if user.role == "admin" else "/"
     response = HTMLResponse(
-        content=f'<script>window.location.href = "{redirect_target}";</script>',
+        content=f'<div class="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">Authenticated as {user.email} ({user.role}). Redirecting...</div>',
         status_code=status.HTTP_200_OK,
+        headers={
+            "X-Redirect-Url": redirect_target,
+            "HX-Redirect": redirect_target,
+        },
     )
     response.set_cookie(
         key="session_token",
@@ -604,8 +651,12 @@ async def web_register(
         user = await UserService.register_user(db, email, password)
         token = create_session_token(user.id, user.email, user.role)
         response = HTMLResponse(
-            content='<script>window.location.href = "/";</script>',
+            content=f'<div class="p-3 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">Account {user.email} created! Redirecting...</div>',
             status_code=status.HTTP_200_OK,
+            headers={
+                "X-Redirect-Url": "/",
+                "HX-Redirect": "/",
+            },
         )
         response.set_cookie(
             key="session_token",
@@ -654,4 +705,5 @@ async def web_create_admin(
             content=f'<div class="p-3 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">{str(exc)}</div>',
             status_code=status.HTTP_409_CONFLICT,
         )
+
 

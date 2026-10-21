@@ -9,7 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Product, User
+from app.models import Order, Product, User
 from app.security import hash_password, verify_password
 from app.schemas import (
     SKU_ALLOWED_PATTERN,
@@ -41,6 +41,14 @@ class InsufficientStockException(ProductDomainException):
         )
         self.requested = requested
         self.available = available
+
+
+class PaymentRejectedException(ProductDomainException):
+    def __init__(self, card_option: str) -> None:
+        super().__init__(
+            f"Purchase rejected: Payment with card '{card_option}' was declined by the issuing bank. Stock was not modified."
+        )
+        self.card_option = card_option
 
 
 class DuplicateSkuException(ProductDomainException):
@@ -185,10 +193,20 @@ async def get_product_concurrency_lock(product_id: uuid.UUID) -> asyncio.Lock:
 class PurchaseService:
     @staticmethod
     async def purchase_product(
-        db: AsyncSession, product_id: uuid.UUID, quantity: int
+        db: AsyncSession,
+        product_id: uuid.UUID,
+        quantity: int,
+        card_option: str = "XXX-1234 SUCCEED",
+        user_id: Optional[uuid.UUID] = None,
+        user_email: Optional[str] = None,
     ) -> ProductPurchaseResponse:
         if quantity <= 0:
             raise ValueError("Purchase quantity must be greater than zero.")
+
+        normalized_card = card_option.strip() if card_option else "XXX-1234 SUCCEED"
+        if "REJECTED" in normalized_card.upper() or "1111" in normalized_card:
+            await ProductService.get_by_id(db, product_id)
+            raise PaymentRejectedException(normalized_card)
 
         concurrency_lock = await get_product_concurrency_lock(product_id)
         async with concurrency_lock:
@@ -221,9 +239,28 @@ class PurchaseService:
                 product.stock = remaining_stock
                 total_price = unit_price * Decimal(str(quantity))
 
+                order_id_val: Optional[uuid.UUID] = None
+                if user_id is not None:
+                    new_order = Order(
+                        id=uuid.uuid4(),
+                        user_id=user_id,
+                        user_email=user_email or "user@user.com",
+                        product_id=product_id_val,
+                        sku=product_sku,
+                        product_name=product_name,
+                        quantity=quantity,
+                        unit_price=unit_price,
+                        total_price=total_price,
+                        payment_card=normalized_card,
+                        status="SUCCEEDED",
+                    )
+                    db.add(new_order)
+                    order_id_val = new_order.id
+
                 await db.commit()
 
                 return ProductPurchaseResponse(
+                    order_id=order_id_val,
                     product_id=product_id_val,
                     sku=product_sku,
                     name=product_name,
@@ -231,6 +268,8 @@ class PurchaseService:
                     remaining_stock=remaining_stock,
                     unit_price=unit_price,
                     total_price=total_price,
+                    payment_card=normalized_card,
+                    status="SUCCEEDED",
                     timestamp=datetime.now(timezone.utc),
                 )
             except Exception:
@@ -552,4 +591,16 @@ class UserService:
             select(User).where(User.role == "admin").order_by(User.email.asc())
         )
         return list(result.scalars().all())
+
+
+class OrderService:
+    @staticmethod
+    async def list_user_orders(db: AsyncSession, user_id: uuid.UUID) -> List[Order]:
+        result = await db.execute(
+            select(Order)
+            .where(Order.user_id == user_id)
+            .order_by(Order.created_at.desc())
+        )
+        return list(result.scalars().all())
+
 
