@@ -44,7 +44,7 @@ On startup, the application automatically seeds two default accounts with **PBKD
    - **View Personal Orders (`/orders` & `My Orders` tab)**: Inspect all orders associated with their user account (`Order ID`, `SKU`, `Product Name`, `Quantity`, `Total Charged`, `Card Used`, `Status`, and `Timestamp`).
 3. **Unauthenticated Visitors (No Active Session)**:
    - Can browse, search, filter products, and open the product details modal.
-   - **Purchase buttons** and **Sample CSV buttons** are completely hidden when no session is active.
+   - **Purchase buttons** are completely hidden when no session is active in order to create an order ID after the transaction.
    - **Login** and **Register** buttons are displayed in the navigation bar.
    - Public registration (`/register` and `POST /api/auth/register`) creates **normal user accounts only** (`role = "user"`).
    - Logging in or registering immediately updates/reloads the active session and redirects to the appropriate workspace (`X-Redirect-Url` / `HX-Redirect`).

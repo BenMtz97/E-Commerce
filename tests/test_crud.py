@@ -215,7 +215,7 @@ async def test_purchase_card_succeed_and_rejected_options(
     assert succeed_resp.status_code == 200
     succeed_data = succeed_resp.json()
     assert succeed_data["remaining_stock"] == initial_stock - 2
-    assert succeed_data["card_option"] == "XXX-1234 SUCCEED"
+    assert succeed_data["card_option"] == "XXX-1234 SUCCEED".strip()
     assert succeed_data["order_id"] is not None
 
     orders_resp = await client.get("/api/orders", headers=headers)
@@ -224,5 +224,5 @@ async def test_purchase_card_succeed_and_rejected_options(
     assert len(orders) == 1
     assert orders[0]["sku"] == sample_product.sku
     assert orders[0]["quantity"] == 2
-    assert orders[0]["card_option"] == "XXX-1234 SUCCEED"
+    assert orders[0]["card_option"] == "XXX-1234 SUCCEED".strip()
 
