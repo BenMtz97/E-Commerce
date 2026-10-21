@@ -187,6 +187,7 @@ class ProductPurchaseResponse(BaseModel):
     unit_price: Decimal
     total_price: Decimal
     payment_card: str = "XXX-1234 SUCCEED"
+    card_option: str = "XXX-1234 SUCCEED"
     status: str = "SUCCEEDED"
     timestamp: datetime
 
@@ -202,6 +203,7 @@ class OrderResponse(BaseModel):
     unit_price: Decimal
     total_price: Decimal
     payment_card: str
+    card_option: str = "XXX-1234 SUCCEED"
     status: str
     created_at: datetime
 

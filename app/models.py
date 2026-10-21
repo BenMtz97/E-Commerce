@@ -164,4 +164,8 @@ class Order(Base):
         nullable=False
     )
 
+    @property
+    def card_option(self) -> str:
+        return self.payment_card
+
 

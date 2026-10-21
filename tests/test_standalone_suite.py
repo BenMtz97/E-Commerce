@@ -87,11 +87,18 @@ class TestTemplateAndApplicationContracts(unittest.TestCase):
             models_src = handle.read()
         self.assertIn("class Order(Base):", models_src)
         self.assertIn('__tablename__ = "orders"', models_src)
+        self.assertIn("def card_option(self) -> str:", models_src)
+
+        with open("app/schemas.py", "r", encoding="utf-8") as handle:
+            schemas_src = handle.read()
+        self.assertIn("card_option: str", schemas_src)
+        self.assertIn("payment_card: str", schemas_src)
 
         with open("app/services.py", "r", encoding="utf-8") as handle:
             services_src = handle.read()
         self.assertIn("class PaymentRejectedException", services_src)
         self.assertIn("class OrderService:", services_src)
+        self.assertIn("card_option=normalized_card", services_src)
 
     def test_python_ast_and_zero_comments_policy(self) -> None:
         py_files = glob.glob("app/**/*.py", recursive=True) + glob.glob("tests/**/*.py", recursive=True)

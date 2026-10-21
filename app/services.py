@@ -273,6 +273,7 @@ class PurchaseService:
                     unit_price=unit_price,
                     total_price=total_price,
                     payment_card=normalized_card,
+                    card_option=normalized_card,
                     status="SUCCEEDED",
                     timestamp=datetime.now(timezone.utc),
                 )
