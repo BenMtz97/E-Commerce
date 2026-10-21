@@ -140,7 +140,7 @@ async def purchase_partial(
     request: Request,
     product_id: uuid.UUID = Form(...),
     quantity: int = Form(...),
-    card_option: str = Form("XXX-1234 SUCCEED"),
+    card_option: str = Form(""),
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
@@ -156,12 +156,24 @@ async def purchase_partial(
             status_code=status.HTTP_200_OK,
             headers={"HX-Trigger": "transactionProcessed"},
         )
+    if not card_option or card_option.strip() not in ("XXX-1234 SUCCEED", "XXX-1111 REJECTED"):
+        product = await ProductService.get_by_id(db, product_id)
+        return templates.TemplateResponse(
+            request,
+            "partials/purchase_result.html",
+            {
+                "success": False,
+                "product": product,
+                "message": "Please select a payment card option (XXX-1234 SUCCEED or XXX-1111 REJECTED) before confirming your purchase.",
+            },
+            status_code=status.HTTP_200_OK,
+        )
     try:
         purchase_result = await PurchaseService.purchase_product(
             db=db,
             product_id=product_id,
             quantity=quantity,
-            card_option=card_option,
+            card_option=card_option.strip(),
             user_id=current_user.id,
             user_email=current_user.email,
         )

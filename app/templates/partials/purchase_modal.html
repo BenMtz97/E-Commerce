@@ -85,12 +85,14 @@
 
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1.5">
-            Cardbank Payment Selector (Test Mode)
+            Cardbank Payment Selector (Select Card)
           </label>
           <select name="card_option"
                   x-model="purchaseCardOption"
+                  required
                   :disabled="purchaseButtonDisabled"
                   class="w-full px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-blue-500 disabled:opacity-50">
+            <option value="" disabled>-- Select a Bank Card --</option>
             <option value="XXX-1234 SUCCEED">XXX-1234 SUCCEED</option>
             <option value="XXX-1111 REJECTED">XXX-1111 REJECTED</option>
           </select>
@@ -103,7 +105,9 @@
           </div>
           <div class="flex justify-between text-xs text-slate-400">
             <span>Selected Card</span>
-            <span class="font-mono" :class="purchaseCardOption.includes('SUCCEED') ? 'text-emerald-400' : 'text-rose-400'" x-text="purchaseCardOption"></span>
+            <span class="font-mono"
+                  :class="!purchaseCardOption ? 'text-slate-500 italic' : (purchaseCardOption.includes('SUCCEED') ? 'text-emerald-400' : 'text-rose-400')"
+                  x-text="purchaseCardOption || 'None selected'"></span>
           </div>
           <div class="pt-2 border-t border-slate-800 flex justify-between text-sm font-semibold text-white">
             <span>Total Cost</span>
@@ -118,9 +122,9 @@
             Close
           </button>
           <button type="submit"
-                  :disabled="purchaseButtonDisabled"
+                  :disabled="purchaseButtonDisabled || !purchaseCardOption"
                   class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm shadow-blue-500/20">
-            <span x-text="purchaseButtonDisabled ? 'Purchase Deactivated' : 'Confirm Purchase'"></span>
+            <span x-text="purchaseButtonDisabled ? 'Purchase Deactivated' : (!purchaseCardOption ? 'Select a Card' : 'Confirm Purchase')"></span>
           </button>
         </div>
       </form>

@@ -1,0 +1,74 @@
+name: Enterprise CI & Automated Validation Suite
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-pytest-suite:
+    name: Python FastAPI & SQLAlchemy Async Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Verify Python Syntax & Zero-Comment Architecture Policy
+        run: |
+          python3 -m py_compile app/*.py app/routers/*.py tests/*.py
+          python3 -m unittest discover -s tests -p "test_standalone*.py" -v
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest Suite (CRUD, CSV Security, RBAC, Cardbank & Orders, Concurrency, 503 Maintenance)
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          SECRET_KEY: "ci-test-secret-key-pbkdf2-hmac-sha256"
+        run: |
+          pytest \
+            tests/test_crud.py \
+            tests/test_csv_import.py \
+            tests/test_auth.py \
+            tests/test_orders_and_cards.py \
+            tests/test_concurrency.py \
+            tests/test_maintenance.py \
+            -v --tb=short
+
+  frontend-and-behavior-suite:
+    name: TypeScript, Domain Validation & Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run TypeScript Compiler Check
+        run: npm run lint
+
+      - name: Run Automated Behavior & Security Tests
+        run: npm test
+
+      - name: Build Production Bundle
+        run: npm run build

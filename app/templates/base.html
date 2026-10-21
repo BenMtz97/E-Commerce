@@ -40,13 +40,13 @@
         editProduct: null,
         deleteProduct: null,
         purchaseQty: 1,
-        purchaseCardOption: 'XXX-1234 SUCCEED',
+        purchaseCardOption: '',
         purchaseButtonDisabled: false,
         purchaseConfirmed: false,
         openPurchaseModal(product) {
           this.selectedProduct = product;
           this.purchaseQty = 1;
-          this.purchaseCardOption = 'XXX-1234 SUCCEED';
+          this.purchaseCardOption = '';
           this.purchaseButtonDisabled = false;
           this.purchaseConfirmed = false;
           const fb = document.getElementById('purchase-feedback-container');

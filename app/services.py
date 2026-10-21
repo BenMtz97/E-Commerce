@@ -203,7 +203,11 @@ class PurchaseService:
         if quantity <= 0:
             raise ValueError("Purchase quantity must be greater than zero.")
 
-        normalized_card = card_option.strip() if card_option else "XXX-1234 SUCCEED"
+        normalized_card = card_option.strip() if card_option is not None else ""
+        if not normalized_card:
+            raise ValueError(
+                "Please select a payment card option (XXX-1234 SUCCEED or XXX-1111 REJECTED)."
+            )
         if "REJECTED" in normalized_card.upper() or "1111" in normalized_card:
             await ProductService.get_by_id(db, product_id)
             raise PaymentRejectedException(normalized_card)
