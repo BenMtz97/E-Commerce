@@ -77,6 +77,18 @@ class TestTemplateAndApplicationContracts(unittest.TestCase):
         )
         self.assertIsNotNone(pattern.search(index_html))
 
+        with open("app/templates/base.html", "r", encoding="utf-8") as handle:
+            base_html = handle.read()
+        base_pattern = re.compile(
+            r"\{%\s*if\s+current_user\s+and\s+current_user\.role\s*==\s*'admin'\s*%\}.*?csv_modal\.html.*?\{%\s*endif\s*%\}",
+            re.DOTALL,
+        )
+        self.assertIsNotNone(base_pattern.search(base_html))
+
+        with open("app/routers/api.py", "r", encoding="utf-8") as handle:
+            api_src = handle.read()
+        self.assertLess(api_src.index('"/import-csv"'), api_src.index('"/{product_id}"'))
+
     def test_admin_multicolumn_filters_present(self) -> None:
         with open("app/templates/admin.html", "r", encoding="utf-8") as handle:
             admin_html = handle.read()

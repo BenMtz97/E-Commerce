@@ -335,12 +335,14 @@
   </footer>
 
   {% include "partials/purchase_modal.html" %}
+  {% include "partials/login_modal.html" %}
+  {% include "partials/register_modal.html" %}
+
+  {% if current_user and current_user.role == 'admin' %}
   {% include "partials/csv_modal.html" %}
   {% include "partials/product_create_modal.html" %}
   {% include "partials/product_edit_modal.html" %}
   {% include "partials/product_delete_modal.html" %}
-  {% include "partials/login_modal.html" %}
-  {% include "partials/register_modal.html" %}
 
   <div x-show="adminModalOpen" x-cloak class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" @click="closeAdminModal()"></div>
@@ -372,6 +374,7 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
 </body>
 </html>

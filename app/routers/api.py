@@ -67,6 +67,30 @@ async def list_categories(db: AsyncSession = Depends(get_db)) -> List[str]:
     return await ProductService.list_categories(db)
 
 
+@products_router.post(
+    "/import-csv",
+    response_model=CsvImportSummary,
+    status_code=status.HTTP_200_OK,
+)
+async def import_csv(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+) -> CsvImportSummary:
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must be a valid .csv file.",
+        )
+    try:
+        content = await file.read()
+        return await CsvImportService.import_csv(db, content)
+    except Exception as exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process CSV file: {str(exception)}",
+        )
+
+
 @products_router.get("/{product_id}", response_model=ProductResponse, status_code=status.HTTP_200_OK)
 async def get_product(
     product_id: uuid.UUID,
@@ -172,30 +196,6 @@ async def purchase_product(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exception),
-        )
-
-
-@products_router.post(
-    "/import-csv",
-    response_model=CsvImportSummary,
-    status_code=status.HTTP_200_OK,
-)
-async def import_csv(
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db),
-) -> CsvImportSummary:
-    if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file must be a valid .csv file.",
-        )
-    try:
-        content = await file.read()
-        return await CsvImportService.import_csv(db, content)
-    except Exception as exception:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to process CSV file: {str(exception)}",
         )
 
 
